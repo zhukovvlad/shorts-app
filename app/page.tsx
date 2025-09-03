@@ -1,7 +1,5 @@
-export default function Home() {
-  return (
-    <div>
-      hi
-    </div>
-  );
+import { redirect } from "next/navigation";
+
+export default async function Home() {
+  redirect("/new");
 }
