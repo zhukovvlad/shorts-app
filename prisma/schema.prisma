@@ -9,13 +9,36 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-model User{
-  id String @id @default(cuid())
-  email String @unique
-  name String
+model User {
+  userId    String   @id
+  name      String?
+  email     String   @unique
+  videos    Video[]
+  credits   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Video {
+  videoId      String   @id
+  prompt       String
+  processing   Boolean
+  failed       Boolean? @default(false)
+  content      String?
+  imagePrompts String[]
+  imageLinks   String[]
+  audio        String?
+  videoUrl     String?
+  captions     Json?
+  duration     Int?
+  thumbnail    String?
+  userId       String
+  user         User     @relation(fields: [userId], references: [userId])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
