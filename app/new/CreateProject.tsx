@@ -17,7 +17,7 @@ const CreateProject = ({ user }: { user: string | null }) => {
     "How to assemble your own PC?",
   ];
 
-  const [prompt, setPrompt] = useState("")
+  const [prompt, setPrompt] = useState("");
 
   return (
     <div className="w-screen h-screen flex flex-col">
@@ -37,11 +37,9 @@ const CreateProject = ({ user }: { user: string | null }) => {
       )}
       {user && (
         <div className="flex justify-end mr-7 mt-5">
-          <Link href="/dashboard">
-            <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium mx-2 cursor-pointer">
-              Dashboard
-            </Button>
-          </Link>
+          <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium mx-2 cursor-pointer">
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
           <SignOutButton>
             <Button className="bg-black border border-gray-400 text-white rounded-full mx-2 hover:bg-gray-900 transitioncolors duration-150 cursor-pointer">
               Sign Out
@@ -57,12 +55,16 @@ const CreateProject = ({ user }: { user: string | null }) => {
       </h1>
 
       <div className="flex justify-center mt-auto mb-[400px]">
-        <div className="">
+        <div className="relative rounded-3xl w-[500px] overflow-hidden">
+          <ShineBorder
+            className="z-10"
+            shineColor={["#3352CC", "#3352CC", "#3352CC", "#3352CC"]}
+          />
           <PlaceholdersAndVanishInput
-		  	placeholders={placeholders}
-			onChange={(e) => setPrompt(e.target.value)}
-			onSubmit={() => {}}
-		  />
+            placeholders={placeholders}
+            onChange={(e) => setPrompt(e.target.value)}
+            onSubmit={() => {}}
+          />
         </div>
       </div>
     </div>
