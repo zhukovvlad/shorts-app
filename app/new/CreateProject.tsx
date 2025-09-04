@@ -24,7 +24,7 @@ const CreateProject = ({ user }: { user: string | null }) => {
       {!user && (
         <div className="flex justify-end gap-1 mr-7 mt-5">
           <SignInButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full mx-2 hover:bg-gray-900 transitioncolors duration-150 cursor-pointer">
+            <Button className="bg-black border border-gray-400 text-white rounded-full mx-2 hover:bg-gray-900 transition-colors duration-150 cursor-pointer">
               Sign In
             </Button>
           </SignInButton>
@@ -37,11 +37,14 @@ const CreateProject = ({ user }: { user: string | null }) => {
       )}
       {user && (
         <div className="flex justify-end mr-7 mt-5">
-          <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium mx-2 cursor-pointer">
+          <Button
+            asChild
+            className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium mx-2 cursor-pointer"
+          >
             <Link href="/dashboard">Dashboard</Link>
           </Button>
           <SignOutButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full mx-2 hover:bg-gray-900 transitioncolors duration-150 cursor-pointer">
+            <Button className="bg-black border border-gray-400 text-white rounded-full mx-2 hover:bg-gray-900 transition-colors duration-150 cursor-pointer">
               Sign Out
             </Button>
           </SignOutButton>
@@ -55,7 +58,7 @@ const CreateProject = ({ user }: { user: string | null }) => {
       </h1>
 
       <div className="flex justify-center mt-auto mb-[400px]">
-        <div className="relative rounded-3xl w-[500px] overflow-hidden">
+        <div className="relative rounded-3xl w-full max-w-[500px] overflow-hidden">
           <ShineBorder
             className="z-10"
             shineColor={["#3352CC", "#3352CC", "#3352CC", "#3352CC"]}
