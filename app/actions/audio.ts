@@ -46,7 +46,6 @@ export const generateAudio = async (videoId: string) => {
     }
 
     const audioBuffer = Buffer.concat(chunks);
-    console.log('generated audio')
     const fileName = `${randomUUID()}.mp3`;
 
     const command = new PutObjectCommand({
@@ -59,7 +58,12 @@ export const generateAudio = async (videoId: string) => {
     await s3Client.send(command);
 
     const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-    return s3Url;
+    console.log("s3Url", s3Url);
+
+    await prisma.video.update({
+      where: { videoId },
+      data: { audio: s3Url },
+    });
 
   } catch (error) {
     console.error("Error generating audio:", error);

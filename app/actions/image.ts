@@ -53,23 +53,29 @@ const processImage = async (img: string) => {
     return s3Url;
   } catch (error) {
     console.log("Error processing image from replicate:", error);
-	throw error;
+    throw error;
   }
 };
 
 export const generateImages = async (videoId: string) => {
   try {
-    // const video = await prisma.video.findUnique({
-    //   where: { videoId },
-    // });
+    const video = await prisma.video.findUnique({
+      where: { videoId },
+    });
 
-    // if (!video) {
-    //   return null;
-    // }
+    if (!video) {
+      return null;
+    }
 
-    const response = await processImage('leo messi celebrating his 8th ballandor')
-    console.log('response', response)
+    const imagePromises = video.imagePrompts.map((img) => processImage(img));
 
+    const imageLinks = await Promise.all(imagePromises);
+    console.log("Generated image links:", imageLinks);
+
+    await prisma.video.update({
+      where: { videoId },
+      data: { imageLinks: imageLinks, thumbnail: imageLinks[0] },
+    });
   } catch (error) {
     console.log("Error generating images:", error);
     throw error;
