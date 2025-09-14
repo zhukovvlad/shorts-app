@@ -1,0 +1,9 @@
+{
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.preferences.importModuleSpecifier": "shortest",
+  "typescript.suggest.completeFunctionCalls": true,
+  "typescript.workspaceSymbols.scope": "currentProject",
+  "typescript.suggest.includeAutomaticOptionalChainCompletions": true
+}

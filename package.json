@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.884.0",
@@ -14,7 +15,7 @@
     "@elevenlabs/elevenlabs-js": "^2.15.0",
     "@heroui/react": "^2.8.4",
     "@heroui/tooltip": "^2.2.23",
-    "@prisma/client": "^6.15.0",
+    "@prisma/client": "6.15.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.3",
     "@remotion/lambda": "4.0.345",
@@ -42,7 +43,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@remotion/cli": "4.0.345",
     "@tailwindcss/postcss": "^4.1.13",
-    "@types/node": "^20.19.13",
+    "@types/node": "20.19.13",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "eslint": "^9.35.0",
