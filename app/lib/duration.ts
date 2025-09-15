@@ -5,7 +5,17 @@ export const videoDuration = async (videoId: string) => {
     where: { videoId },
   });
 
-  const captions = video?.captions as any[];
+  if (!video?.captions) {
+    console.warn(`No captions found for video ${videoId}`);
+    return;
+  }
+
+  const captions = video.captions as any[];
+  if (!Array.isArray(captions) || captions.length === 0) {
+    console.warn(`Invalid captions data for video ${videoId}`);
+    return;
+  }
+
   const calculateDuration = captions[captions.length - 1]?.endFrame;
 
   await prisma.video.update({
