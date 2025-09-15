@@ -15,9 +15,9 @@ interface Caption {
 }
 
 interface VideoComponentProps {
-  imageLinks: string[];
-  audio: string;
-  captions: Caption[];
+  imageLinks?: string[];
+  audio?: string;
+  captions?: Caption[];
 }
 
 export const VideoComponent = ({
@@ -28,16 +28,30 @@ export const VideoComponent = ({
   const frame = useCurrentFrame();
   const { width, durationInFrames } = useVideoConfig();
 
-  const framesPerImage = Math.ceil(durationInFrames / imageLinks.length);
+  // Add safety checks for undefined props
+  const safeImageLinks = imageLinks || [];
+  const safeCaptions = captions || [];
+
+  if (safeImageLinks.length === 0) {
+    return (
+      <AbsoluteFill style={{ backgroundColor: "black", color: "white" }}>
+        <div>No images available</div>
+      </AbsoluteFill>
+    );
+  }
+
+  const framesPerImage = Math.ceil(durationInFrames / safeImageLinks.length);
 
   const chunkSize = 3;
   const chunks = [];
-  for (let i = 0; i < captions.length; i += chunkSize) {
-    chunks.push(captions.slice(i, i + chunkSize));
+  for (let i = 0; i < safeCaptions.length; i += chunkSize) {
+    chunks.push(safeCaptions.slice(i, i + chunkSize));
   }
 
   const activeChunkIndex = chunks.findIndex(
     (chunk) =>
+      chunk && 
+      chunk.length > 0 &&
       frame >= chunk[0].startFrame && frame <= chunk[chunk.length - 1].endFrame
   );
 
@@ -54,7 +68,7 @@ export const VideoComponent = ({
         alignItems: "center",
       }}
     >
-      {imageLinks.map((imageLink, index) => {
+      {safeImageLinks.map((imageLink, index) => {
         const startFrame = index * framesPerImage;
         return (
           <Sequence
@@ -69,7 +83,7 @@ export const VideoComponent = ({
           </Sequence>
         );
       })}
-      <Audio src={audio} />
+      {audio && <Audio src={audio} />}
       {currentChunk.length > 0 && (
         <div
           style={{
@@ -88,7 +102,7 @@ export const VideoComponent = ({
               <span
                 key={i}
                 style={{
-                  color: isCurrent ? "#FF0055" : "FFFFFF",
+                  color: isCurrent ? "#FF0055" : "#FFFFFF",
                   fontWeight: isCurrent ? "bold" : "normal",
                   fontFamily: "Impact, Arial, sans-serif",
                   fontSize: width * 0.07,

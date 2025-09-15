@@ -4,6 +4,7 @@ import { findPrompt } from "../lib/findPrompt";
 import { generateAudio } from "./audio";
 import { generateCaptions } from "./captions";
 import { generateImages } from "./image";
+import { renderVideo } from "./render";
 import { generateScript } from "./script";
 
 export const processVideo = async (videoId: string) => {
@@ -37,6 +38,8 @@ export const processVideo = async (videoId: string) => {
     await generateCaptions(videoId);
     await imagesPromise;
     await videoDuration(videoId);
+
+    await renderVideo(videoId);
 
   } catch (error) {
     console.error("Error processing video:", error);
