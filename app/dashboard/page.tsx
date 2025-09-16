@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { SignOutButton } from '@clerk/nextjs';
+import { VideoCard } from '../components/videoCard';
 
 const Dashboard = async () => {
     const user = await currentUser();
@@ -35,7 +36,7 @@ const Dashboard = async () => {
                     </Link>
 
                     <SignOutButton>
-                        <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4">
+                        <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
                             Sign Out
                         </Button>
                     </SignOutButton>
@@ -55,7 +56,9 @@ const Dashboard = async () => {
                     </div>
                 ) : (
                     <div className='grid grid-cols-3 gap-6'>
-
+                        {videos.map((video) => (
+                            <VideoCard key={video.videoId} video={video} />
+                        ))}
                     </div>
                 )
             }
