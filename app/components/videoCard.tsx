@@ -19,7 +19,7 @@ export const VideoCard = ({ video }: { video: any }) => {
     })
     return (
         <div className='border bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 relative'>
-            <Link href={`/video/${video.videoId}`} className="block">
+            <Link href={`/videos/${video.videoId}`} className="block">
                 <div className="aspect-video bg-gray-800 relative">
                     {video.thumbnail ? (
                         <img
@@ -54,7 +54,7 @@ export const VideoCard = ({ video }: { video: any }) => {
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white"
+                            className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white cursor-pointer"
                             onClick={(e) => e.preventDefault()}
                         >
                             <MoreVertical className="h-4 w-4" />
@@ -87,8 +87,8 @@ export const VideoCard = ({ video }: { video: any }) => {
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:from-red-800 text-white rounded-full">Delete</AlertDialogAction>
+                                    <AlertDialogCancel className="rounded-full cursor-pointer">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:from-red-800 text-white rounded-full cursor-pointer">Delete</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
