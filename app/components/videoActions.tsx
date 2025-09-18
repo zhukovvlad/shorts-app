@@ -1,3 +1,5 @@
+"use client"
+
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Copy, Download, Trash2 } from "lucide-react";
 import { useVideoActions } from "../hooks/useVideoActions";
@@ -75,12 +77,12 @@ export const VideoActions = ({ videoId, videoUrl, isOwner }: VideoActionsProps) 
                 )
             }
 
-            <Link href="/dashboard">
-                <Button variant="ghost" className="flex item-center gap-2 hover:bg-gray-800 rounded-full justify-start w-48 cursor-pointer">
+            <Button asChild variant="ghost" className="flex items-center gap-2 hover:bg-gray-800 rounded-full justify-start w-48 cursor-pointer">
+                <Link href="/dashboard">
                     <ArrowLeft className="h-4 w-4" />
                     Back to Dashboard
-                </Button>
-            </Link>
+                </Link>
+            </Button>
 
         </div>
     )
