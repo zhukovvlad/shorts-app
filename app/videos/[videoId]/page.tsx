@@ -1,3 +1,4 @@
+import { VideoActions } from "@/app/components/videoActions";
 import { prisma } from "@/app/lib/db";
 import { findPrompt } from "@/app/lib/findPrompt";
 import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
@@ -70,7 +71,7 @@ const page = async ({ params }: {
                                 </AnimatedShinyText>
                             </div>
                             <Input
-                                className="rounded h-9 w--90"
+                                className="rounded h-9 w-90"
                                 style={{
                                     background: "#eee", color: "#000"
                                 }}
@@ -108,7 +109,7 @@ const page = async ({ params }: {
                             </div>
                         </div>
                     </div>
-                    {/* // actions */}
+                    <VideoActions videoId={videoId} videoUrl={videoUrl} isOwner={isOwner} />
                 </div>
             </div>
         </div>
