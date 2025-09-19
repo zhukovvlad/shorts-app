@@ -6,13 +6,11 @@ import { AnimatedShinyText } from "@/components/ui/animated-shiny-text";
 import { Input } from "@/components/ui/input";
 import { TypingAnimation } from "@/components/ui/typing-animation";
 import { cn } from "@/lib/utils";
-import { currentUser } from "@clerk/nextjs/server"
-import { ArrowRightIcon, ChevronRight } from "lucide-react";
+import { currentUser } from "@clerk/nextjs/server";
+import { ArrowRightIcon } from "lucide-react";
 
-const page = async ({ params }: {
-    params: Promise<{ videoId: string }>
-}) => {
-    const { videoId } = await params
+const page = async ({ params }: { params: { videoId: string } }) => {
+    const { videoId } = params;
     const user = await currentUser();
 
     if (!user) {
@@ -42,24 +40,30 @@ const page = async ({ params }: {
     }
 
     return (
-        <div className="w-screen h-screen relative">
-            <div className="flex flex-row gap-7">
-                <div className="w-[420px] mt-6 ml-9">
-                    <div className="aspect-[9/16] bg-gray-800 rounded-2xl overflow-hidden">
-                        <video
-                            key={videoId}
-                            className="w-full h-full object-cover rounded-2xl"
-                            controls
-                            playsInline
-                            src={videoUrl ?? undefined}
-                        >
-                            Your old browser does not support the video tag.
-                        </video>
+        <div className="min-h-screen w-full relative overflow-x-hidden">
+            <div className="mx-auto max-w-7xl px-4 py-6">
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    {/* Left: Video */}
+                    <div className="w-full lg:w-[420px] lg:shrink-0">
+                        <div className="mt-2 lg:mt-6">
+                            <div className="aspect-[9/16] bg-gray-800 rounded-2xl overflow-hidden mx-auto max-w-[420px]">
+                                <video
+                                    key={videoId}
+                                    className="w-full h-full object-cover rounded-2xl"
+                                    controls
+                                    playsInline
+                                    src={videoUrl ?? undefined}
+                                >
+                                    Your old browser does not support the video tag.
+                                </video>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div className="flex flex-row gap-8">
-                    <div className="flex flex-col ml-5 mt-10">
-                        <div className="flex flex-row gap-2">
+
+                    {/* Right: Details and actions */}
+                    <div className="flex-1 flex flex-col gap-6 lg:mt-6">
+                        {/* Prompt row */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                             <div
                                 className={cn(
                                     "group rounded-full border border-black/5 bg-neutral-100 text-base text-white transition-all ease-in hover:cursor-pointer hover:bg-neutral-200 dark:border-white/5 dark:bg-neutral-800 dark:hover:bg-neutral-800",
@@ -71,16 +75,16 @@ const page = async ({ params }: {
                                 </AnimatedShinyText>
                             </div>
                             <Input
-                                className="rounded h-9 w-90"
-                                style={{
-                                    background: "#eee", color: "#000"
-                                }}
+                                className="rounded h-9 w-full max-w-xl"
+                                style={{ background: "#eee", color: "#000" }}
                                 defaultValue={prompt}
                                 disabled
                             />
                         </div>
-                        <div className="mt-10">
-                            <div className="w-[100px]">
+
+                        {/* Transcript */}
+                        <div>
+                            <div className="w-fit">
                                 <div className="group relative mx-auto flex items-center justify-center rounded-full px-2 py-1.5 shadow-[inset_0_-8px_10px_#8fdfff1f] transition-shadow duration-500 ease-out hover:shadow-[inset_0_-5px_10px_#8fdfff3f] ">
                                     <span
                                         className={cn(
@@ -102,14 +106,18 @@ const page = async ({ params }: {
 
                                 </div>
                             </div>
-                            <div className="w-110 mt-5 p-4 rounded-md bg-neutral-900/60 background-blur-sm border-gray-100">
-                                <TypingAnimation className="text-sm text-transparent bg-clip-text bg-gradient-to-r from-gray-300 via-gray-100 to-gray-400">
+                            <div className="mt-4 p-4 rounded-md bg-neutral-900/60 backdrop-blur-sm border border-white/10 w-full max-w-3xl max-h-64 sm:max-h-80 md:max-h-[420px] overflow-auto">
+                                <TypingAnimation className="text-sm leading-relaxed text-transparent bg-clip-text bg-gradient-to-r from-gray-300 via-gray-100 to-gray-400 whitespace-pre-wrap break-words">
                                     {transcript}
                                 </TypingAnimation>
                             </div>
                         </div>
+
+                        {/* Actions */}
+                        <div className="sm:self-start">
+                            <VideoActions videoId={videoId} videoUrl={videoUrl} isOwner={isOwner} />
+                        </div>
                     </div>
-                    <VideoActions videoId={videoId} videoUrl={videoUrl} isOwner={isOwner} />
                 </div>
             </div>
         </div>
