@@ -1,29 +1,35 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "./db";
 
+/**
+ * Ensures a user exists in the database and returns their Clerk user ID.
+ * Uses an atomic upsert to avoid race conditions on first sign-in.
+ */
 const checkUser = async (): Promise<string | null> => {
-  const user = await currentUser();
+  try {
+    const user = await currentUser();
+    if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
+    const userId = user.id;
+  // Clerk обычно предоставляет email; если нет, используем уникальный плейсхолдер,
+  // чтобы не нарушить ограничение уникальности на поле email в схеме Prisma.
+  const email = user.primaryEmailAddress?.emailAddress ?? `${user.id}@placeholder.invalid`;
 
-  const userId = user.id;
-  const email = user.primaryEmailAddress?.emailAddress;
-  const existingUser = await prisma.user.findUnique({
-    where: { userId: userId },
-  });
-
-  if (!existingUser) {
-    await prisma.user.create({
-      data: {
-        userId: userId,
-        email: email ?? "",
+    // Atomic upsert to avoid race conditions (create on first visit).
+    await prisma.user.upsert({
+      where: { userId },
+      update: {},
+      create: {
+        userId,
+        email, // schema requires unique email; Clerk normally provides it
       },
     });
+
+    return userId;
+  } catch (err) {
+    console.error("checkUser() failed:", err);
+    return null;
   }
-  
-  return user.id;
 };
 
 export default checkUser;

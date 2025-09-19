@@ -5,11 +5,10 @@ import { prisma } from "./db";
  * Получает количество кредитов пользователя
  * @returns Количество кредитов пользователя или 0 если пользователь не найден
  */
-export const userCredits = async (): Promise<number> => {
+export const userCredits = async (userIdFromCaller?: string | null): Promise<number> => {
   try {
-    const user = await currentUser();
-
-    if (!user?.id) {
+    const resolvedUserId = userIdFromCaller ?? (await currentUser())?.id;
+    if (!resolvedUserId) {
       console.warn(
         "Попытка получить кредиты для неаутентифицированного пользователя"
       );
@@ -18,12 +17,12 @@ export const userCredits = async (): Promise<number> => {
 
     // Более эффективный запрос - получаем только поле credits
     const userData = await prisma.user.findUnique({
-      where: { userId: user.id },
+      where: { userId: resolvedUserId },
       select: { credits: true },
     });
 
     if (!userData) {
-      console.warn(`Пользователь с ID ${user.id} не найден в базе данных`);
+      console.warn(`Пользователь с ID ${resolvedUserId} не найден в базе данных`);
       return 0;
     }
 
