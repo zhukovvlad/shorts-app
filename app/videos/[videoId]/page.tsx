@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 import { currentUser } from "@clerk/nextjs/server";
 import { ArrowRightIcon } from "lucide-react";
 
-const page = async ({ params }: { params: { videoId: string } }) => {
-    const { videoId } = params;
+const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
+    const { videoId } = await params;
     const user = await currentUser();
 
     if (!user) {

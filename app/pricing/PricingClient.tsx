@@ -6,9 +6,9 @@ import { toast } from "sonner"
 import { LoadingSpinner } from "@/app/components/LoadingSpinner"
 
 const plans = [
-  { name: "Starter", price: "$1", features: ["1 video"], priceId: "price_1N7Y2SGa3f3b4vXgYxW8zKJq" },
-  { name: "Pro", price: "$20", features: ["25 Videos"], popular: true, priceId: "price_1N7Y2SGa3f3b4vXgYxW8zKJq" },
-  { name: "Enterprise", price: "$99", features: ["150 videos"], priceId: "price_1N7Y2SGa3f3b4vXgYxW8zKJq" },
+  { name: "Starter", price: "$1", features: ["1 video"], priceId: "price_1SA7VoFbnWkjMFsPB9IvRYWg" },
+  { name: "Pro", price: "$20", features: ["25 Videos"], popular: true, priceId: "price_1SA7YQFbnWkjMFsPK7dLbJdu" },
+  { name: "Enterprise", price: "$99", features: ["150 videos"], priceId: "price_1SA7YQFbnWkjMFsPIj2Vct6k" },
 ]
 
 export default function PricingClient() {
