@@ -35,7 +35,7 @@ export const useVideoActions = ({ videoId, videoUrl, onDeleteSuccess }: UseVideo
 
     const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(window.location.origin + `/video/${videoId}`);
+            await navigator.clipboard.writeText(window.location.origin + `/videos/${videoId}`);
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
 
