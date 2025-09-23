@@ -24,7 +24,7 @@ const SuccessPage = () => {
 
                 <div className="flex items-center justify-center gap-3">
                     <Link href="/dashboard">
-                        <Button className="bg-gradient-to-br hover:opacity-90 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium flex items-center gap-2 justify-center w-48 py-3 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3352CC] focus-visible:ring-offset-black">
+                        <Button className="bg-gradient-to-br hover:opacity-90 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium flex items-center gap-2 justify-center w-48 py-3 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#3352CC] focus-visible:ring-offset-black cursor-pointer">
                             Go to Dashboard
                             <ArrowRight className="h-4 w-4" aria-hidden="true" />
                         </Button>

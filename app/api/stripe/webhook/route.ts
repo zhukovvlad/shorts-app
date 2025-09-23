@@ -14,7 +14,12 @@ export async function POST(req: Request) {
         return new Response("Webhook secret not configured", { status: 500 });
     }
 
-    const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    let event: Stripe.Event;
+    try {
+        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err: any) {
+        return new Response(`Webhook Error: ${err.message ?? "Invalid signature"}`, { status: 400 });
+    }
 
     if (event.type === "checkout.session.completed") {
         const session = event.data.object as Stripe.Checkout.Session
@@ -43,5 +48,5 @@ export async function POST(req: Request) {
         }
     }
 
-    return new Response('Ok', {status: 200})
+    return new Response('Ok', { status: 200 })
 }
