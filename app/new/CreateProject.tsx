@@ -115,11 +115,20 @@ const CreateProject = ({
 
               setIsLoading(true);
               try {
-                await createVideo(trimmedPrompt);
-                router.push("/dashboard");
-              } catch (err) {
-                setError("Failed to create video. Please try again.");
+                const result = await createVideo(trimmedPrompt);
+                if (result?.videoId) {
+                  router.push("/dashboard");
+                } else {
+                  setError("Failed to create video. Please try again.");
+                }
+              } catch (err: any) {
                 console.error("Video creation error:", err);
+                if (err?.message?.includes('not authenticated')) {
+                  setError("Authentication required. Please sign in again.");
+                  setShowLoginDialog(true);
+                } else {
+                  setError("Failed to create video. Please try again.");
+                }
               } finally {
                 setIsLoading(false);
               }
