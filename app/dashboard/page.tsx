@@ -9,15 +9,15 @@ import { VideoCard } from "../components/videoCard";
 import { redirect } from "next/navigation";
 
 const Dashboard = async () => {
+  const { userId } = await auth();
+
+  if (!userId) {
+    redirect("/sign-in");
+  }
+
+  let videos: any[] = [];
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
-      redirect("/sign-in");
-      return null;
-    }
-
-    const videos = await prisma.video.findMany({
+    videos = await prisma.video.findMany({
       where: {
         userId: userId,
       },
@@ -25,6 +25,11 @@ const Dashboard = async () => {
         createdAt: "desc",
       },
     });
+  } catch (error) {
+    console.error("Database error:", error);
+    // Handle database error - could show error UI or fallback
+    videos = [];
+  }
 
     return (
       <div className="container mx-auto p-4 sm:p-6">
@@ -32,12 +37,15 @@ const Dashboard = async () => {
           <h1 className="text-2xl sm:text-3xl font-bold">Your Videos</h1>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Link href="/new" className="flex-1 sm:flex-initial">
-              <Button className="w-full sm:w-auto bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4">
+            <Button 
+              asChild 
+              className="w-full sm:w-auto bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4 flex-1 sm:flex-initial"
+            >
+              <Link href="/new">
                 <Plus className="h-4 w-4 mr-2" />
                 Create New
-              </Button>
-            </Link>
+              </Link>
+            </Button>
 
             <SignOutButton>
               <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
@@ -74,11 +82,6 @@ const Dashboard = async () => {
         )}
       </div>
     );
-  } catch (error) {
-    console.error("Dashboard error:", error);
-    redirect("/sign-in");
-    return null;
-  }
 };
 
 export default Dashboard;
