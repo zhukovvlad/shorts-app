@@ -144,9 +144,19 @@ export const createVideo = async (prompt: string) => {
             })
             
             // Проверяем, что обновление прошло успешно
-            // Если count = 0, значит кредитов не хватило
+            // Если count = 0, нужно различить "пользователь не найден" от "недостаточно кредитов"
             if (creditUpdateResult.count === 0) {
-                throw new Error('Insufficient credits. Credits may have been used by another operation.')
+                // Выполняем дополнительную проверку существования пользователя в той же транзакции
+                const userExists = await tx.user.findUnique({
+                    where: { userId },
+                    select: { userId: true } // Загружаем минимум данных для проверки
+                })
+                
+                if (!userExists) {
+                    throw new Error('User not found')
+                } else {
+                    throw new Error('Insufficient credits. Credits may have been used by another operation.')
+                }
             }
             
             // Устанавливаем videoId только после успешного выполнения транзакции
