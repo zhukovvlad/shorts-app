@@ -41,7 +41,7 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 
 		return data?.prompt || null;
 	} catch (error) {
-		console.error('findPrompt: database error occurred', error instanceof Error ? error.message : 'unknown error');
-		return null;
+		console.error('findPrompt: database error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
+		throw new Error('findPrompt: internal error');
 	}
 }
