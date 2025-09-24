@@ -20,15 +20,11 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 		
 		// Если передан userId, но он не совпадает с сессией - логируем это
 		if (userId && userId !== requestingUserId) {
-			console.warn('findPrompt: Попытка использовать чужой userId:', {
-				providedUserId: userId,
-				sessionUserId: requestingUserId,
-				videoId: videoId.trim()
-			});
+			console.warn('findPrompt: attempted access with mismatched userId for video');
 		}
 		
 		if (!requestingUserId) {
-			console.warn('findPrompt: Неавторизованный доступ к видео:', videoId);
+			console.warn('findPrompt: unauthorized access attempt to video');
 			return null;
 		}
 
@@ -45,7 +41,7 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 
 		return data?.prompt || null;
 	} catch (error) {
-		console.error('Ошибка при поиске промпта для видео:', videoId, error);
+		console.error('findPrompt: database error occurred', error instanceof Error ? error.message : 'unknown error');
 		return null;
 	}
 }
