@@ -164,6 +164,10 @@ export const createVideo = async (prompt: string) => {
       videoId = newVideoId
     })
 
+    // Устанавливаем флаг сразу после успешного завершения транзакции
+    // Это гарантирует корректную обработку ошибок если последующие операции провалятся
+    transactionCommitted = true
+
     // Добавляем задачу в очередь только после успешного создания записи в БД
     // Это гарантирует, что воркер получит только валидные задачи
     const job = await videoQueue.add('generate-video',
@@ -185,10 +189,6 @@ export const createVideo = async (prompt: string) => {
         removeOnFail: 5 // Сохранить 5 последних неудачных задач
       }
     )
-
-    // Устанавливаем флаг успеха только после всех критических операций
-    // Это важно для правильной работы блока catch
-    transactionCommitted = true
 
     const executionTime = Date.now() - startTime
     console.log(`[${userId}] Video creation completed successfully. VideoId: ${videoId}, JobId: ${job.id}, ExecutionTime: ${executionTime}ms`)
