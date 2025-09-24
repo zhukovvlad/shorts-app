@@ -8,19 +8,19 @@ import { useRouter } from "next/navigation";
 /**
  * Свойства для хука useVideoActions
  */
-interface UseVideoActionsProps {
+type UseVideoActionsProps = {
   /** Уникальный идентификатор видео */
   videoId: string;
   /** URL файла видео для скачивания, может быть null если недоступен */
   videoUrl: string | null;
   /** Опциональная функция обратного вызова, выполняемая после успешного удаления видео */
-  onDeleteSuccess?: () => void;
-}
+  onDeleteSuccessAction?: () => void;
+};
 
 /**
  * Возвращаемый тип для хука useVideoActions
  */
-interface UseVideoActionsReturn {
+type UseVideoActionsReturn = {
   /** Функция для обработки скачивания видео */
   handleDownload: () => void;
   /** Функция для обработки копирования ссылки на видео в буфер обмена */
@@ -31,7 +31,7 @@ interface UseVideoActionsReturn {
   copied: boolean;
   /** Логическое значение, указывающее, выполняется ли удаление */
   isDeleting: boolean;
-}
+};
 
 /**
  * Пользовательский хук для обработки действий с видео (скачивание, копирование ссылки, удаление)
@@ -43,7 +43,7 @@ interface UseVideoActionsReturn {
  * @param props - Объект конфигурации для хука
  * @param props.videoId - Уникальный идентификатор видео
  * @param props.videoUrl - URL файла видео, null если недоступен
- * @param props.onDeleteSuccess - Опциональный обратный вызов после успешного удаления
+ * @param props.onDeleteSuccessAction - Опциональный обратный вызов после успешного удаления
  * 
  * @returns Объект, содержащий обработчики действий и индикаторы состояния
  * 
@@ -52,7 +52,7 @@ interface UseVideoActionsReturn {
  * const { handleDownload, handleCopyLink, handleDelete, copied, isDeleting } = useVideoActions({
  *   videoId: "video-123",
  *   videoUrl: "https://example.com/video.mp4",
- *   onDeleteSuccess: () => router.push('/dashboard')
+ *   onDeleteSuccessAction: () => router.push('/dashboard')
  * });
  * 
  * return (
@@ -69,7 +69,7 @@ interface UseVideoActionsReturn {
 export const useVideoActions = ({
   videoId,
   videoUrl,
-  onDeleteSuccess,
+  onDeleteSuccessAction,
 }: UseVideoActionsProps): UseVideoActionsReturn => {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
@@ -174,8 +174,8 @@ export const useVideoActions = ({
           description: "The video has been deleted successfully.",
         });
 
-        if (onDeleteSuccess) {
-          onDeleteSuccess();
+        if (onDeleteSuccessAction) {
+          onDeleteSuccessAction();
         } else {
           router.refresh();
         }

@@ -47,7 +47,3 @@ next-env.d.ts
 
 # vscode settings
 .vscode/*
-
-# project documentation (temporary notes)
-IMPROVEMENTS.md
-app/hooks/README.md
