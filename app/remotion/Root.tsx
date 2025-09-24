@@ -14,7 +14,7 @@ export const RemotionRoot: React.FC = () => {
         height={1920}
 		calculateMetadata={async ({props}) => {
 			return {
-				durationInFrames:typeof props.durationInFrames === 'number' ? props.durationInFrames : 0,
+				durationInFrames: typeof props.durationInFrames === 'number' && props.durationInFrames > 0 ? props.durationInFrames : 60,
 			}
 		}}
       />

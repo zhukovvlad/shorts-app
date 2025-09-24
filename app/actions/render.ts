@@ -21,7 +21,7 @@ export const renderVideo = async (videoId: string) => {
                 imageLinks: data.imageLinks,
                 audio: data.audio,
                 captions: data.captions,
-                durationInFrames: data.duration,
+                durationInFrames: data.duration && data.duration > 0 ? data.duration : 180, // Default to 6 seconds at 30fps
             },
             framesPerLambda: 400,
         })
