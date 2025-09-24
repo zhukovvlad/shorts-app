@@ -13,7 +13,8 @@ type UseVideoActionsProps = {
   videoId: string;
   /** URL файла видео для скачивания, может быть null если недоступен */
   videoUrl: string | null;
-  /** Опциональная функция обратного вызова, выполняемая после успешного удаления видео */
+  /** Опциональная функция обратного вызова, выполняемая после успешного удаления видео. 
+   * Суффикс "Action" следует конвенции Next.js для Server Actions */
   onDeleteSuccessAction?: () => void;
 };
 
@@ -43,27 +44,32 @@ type UseVideoActionsReturn = {
  * @param props - Объект конфигурации для хука
  * @param props.videoId - Уникальный идентификатор видео
  * @param props.videoUrl - URL файла видео, null если недоступен
- * @param props.onDeleteSuccessAction - Опциональный обратный вызов после успешного удаления
+ * @param props.onDeleteSuccessAction - Опциональный обратный вызов после успешного удаления (конвенция Next.js)
  * 
  * @returns Объект, содержащий обработчики действий и индикаторы состояния
  * 
  * @example
  * ```tsx
- * const { handleDownload, handleCopyLink, handleDelete, copied, isDeleting } = useVideoActions({
- *   videoId: "video-123",
- *   videoUrl: "https://example.com/video.mp4",
- *   onDeleteSuccessAction: () => router.push('/dashboard')
- * });
+ * import { useRouter } from 'next/navigation';
  * 
- * return (
- *   <div>
- *     <button onClick={handleDownload}>Скачать</button>
- *     <button onClick={handleCopyLink}>{copied ? 'Скопировано!' : 'Копировать ссылку'}</button>
- *     <button onClick={handleDelete} disabled={isDeleting}>
- *       {isDeleting ? 'Удаление...' : 'Удалить'}
- *     </button>
- *   </div>
- * );
+ * function VideoComponent() {
+ *   const router = useRouter();
+ *   const { handleDownload, handleCopyLink, handleDelete, copied, isDeleting } = useVideoActions({
+ *     videoId: "video-123",
+ *     videoUrl: "https://example.com/video.mp4",
+ *     onDeleteSuccessAction: () => router.push('/dashboard')
+ *   });
+ * 
+ *   return (
+ *     <div>
+ *       <button onClick={handleDownload}>Скачать</button>
+ *       <button onClick={handleCopyLink}>{copied ? 'Скопировано!' : 'Копировать ссылку'}</button>
+ *       <button onClick={handleDelete} disabled={isDeleting}>
+ *         {isDeleting ? 'Удаление...' : 'Удалить'}
+ *       </button>
+ *     </div>
+ *   );
+ * }
  * ```
  */
 export const useVideoActions = ({
@@ -78,6 +84,7 @@ export const useVideoActions = ({
   /**
    * Обрабатывает скачивание видео, создавая временную ссылку для загрузки
    * 
+   * Валидирует URL на безопасные протоколы (http:, https:, blob:) для предотвращения XSS атак.
    * Создает элемент anchor с атрибутами для скачивания и запускает загрузку.
    * Показывает toast уведомления об успехе/ошибке в зависимости от результата.
    * 
@@ -92,11 +99,21 @@ export const useVideoActions = ({
     }
 
     try {
+      // Parse and allowlist URL protocols to prevent injection
+      const parsed = new URL(videoUrl, window.location.href);
+      const allowed = new Set(["http:", "https:", "blob:"]);
+      if (!allowed.has(parsed.protocol)) {
+        toast.error("Download failed", {
+          description: "Unsupported video URL.",
+        });
+        return;
+      }
+      
       const a = document.createElement("a");
-      a.href = videoUrl;
+      a.href = parsed.toString();
       a.download = `video-${videoId}.mp4`;
       a.target = "_blank";
-      a.rel = "noopener noreferrer"; // Security improvement
+      a.rel = "noopener noreferrer"; // mitigate reverse-tabnabbing when _blank is used
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -152,7 +169,7 @@ export const useVideoActions = ({
    * 
    * Вызывает серверное действие deleteVideo, обрабатывает различные состояния ошибок
    * и предоставляет соответствующую обратную связь пользователю. Выполняет обратный вызов
-   * onDeleteSuccess или обновляет роутер, если обратный вызов не предоставлен.
+   * onDeleteSuccessAction или обновляет роутер, если обратный вызов не предоставлен.
    * 
    * @returns Promise<void>
    */

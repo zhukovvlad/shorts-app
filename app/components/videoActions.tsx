@@ -18,7 +18,7 @@ export const VideoActions = ({ videoId, videoUrl, isOwner }: VideoActionsProps) 
     const { handleDownload, handleCopyLink, handleDelete, isDeleting, copied } = useVideoActions({
         videoId,
         videoUrl,
-        onDeleteSuccess: () => router.push('/dashboard')
+        onDeleteSuccessAction: () => router.push('/dashboard')
     })
 
     return (
