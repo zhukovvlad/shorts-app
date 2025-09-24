@@ -4,13 +4,13 @@
 
 ## Возможности
 
-- ✅ **Скачивание видео**: Безопасное скачивание видеофайлов с обработкой ошибок
+- ✅ **Скачивание видео**: Безопасное скачивание видеофайлов с обработкой ошибок и валидацией URL
 - ✅ **Обмен ссылками**: Копирование ссылок на видео в буфер обмена с проверкой совместимости браузера
 - ✅ **Удаление видео**: Безопасное удаление видео с подтверждением и состояниями загрузки
 - ✅ **Toast уведомления**: Удобная для пользователя обратная связь для всех операций
 - ✅ **Поддержка TypeScript**: Полная типобезопасность с современными `type` определениями
 - ✅ **Обработка ошибок**: Комплексная обработка ошибок с логированием
-- ✅ **Безопасность**: Защита от XSS с `noopener noreferrer`
+- ✅ **Безопасность**: XSS защита с `noopener noreferrer` и валидацией URL протоколов
 
 ## Установка
 
@@ -25,9 +25,11 @@ npm install sonner react next
 ### Базовое использование
 
 ```tsx
+import { useRouter } from 'next/navigation';
 import { useVideoActions } from './hooks/useVideoActions';
 
 function VideoComponent({ videoId, videoUrl }) {
+  const router = useRouter();
   const { 
     handleDownload, 
     handleCopyLink, 
@@ -69,9 +71,11 @@ function VideoComponent({ videoId, videoUrl }) {
 
 ```tsx
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useVideoActions } from './hooks/useVideoActions';
 
 function VideoActionsWithConfirm({ videoId, videoUrl }) {
+  const router = useRouter();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   
   const { handleDelete, isDeleting, ...actions } = useVideoActions({
@@ -150,16 +154,27 @@ function VideoActionsWithConfirm({ videoId, videoUrl }) {
 
 ## Соображения безопасности
 
-- Ссылки открываются с `rel="noopener noreferrer"` для защиты от XSS
+- Ссылки открываются с `rel="noopener noreferrer"` для защиты от reverse-tabnabbing
+- Валидация URL протоколов: разрешены только `http:`, `https:`, `blob:` для предотвращения XSS
 - Использование Clipboard API с правильной обработкой разрешений
 - Валидация аутентификации на стороне сервера для удаления
+
+## Next.js конвенции
+
+Хук использует конвенции именования Next.js для лучшей интеграции с фреймворком:
+
+- **Суффикс "Action"** в `onDeleteSuccessAction` следует эвристике Next.js для [Server Actions](https://nextjs.org/docs/app/getting-started/updating-data)
+- Это помогает системе типов и линтерам Next.js корректно обрабатывать функции
+- Хотя это не строгое требование, следование конвенции улучшает DX (Developer Experience)
 
 ## Зависимости
 
 - `react`: Управление состоянием и хуки
 - `sonner`: Toast уведомления
-- `next/navigation`: Функциональность роутера
+- `next/navigation`: Функциональность роутера (для Next.js 13+ App Router)
 - `../lib/deleteVideo`: Серверное действие для удаления видео
+
+**Примечание:** Если вы используете старую версию Next.js (12 и ниже), используйте `next/router` вместо `next/navigation`.
 
 ## Участие в разработке
 
@@ -198,7 +213,8 @@ describe('useVideoActions', () => {
 
 ### v1.2.0 (Текущая)
 - ✅ Заменены `interface` на `type` (современная практика TypeScript)
-- ✅ Переименовано `onDeleteSuccess` → `onDeleteSuccessAction` (требования Next.js)
+- ✅ Переименовано `onDeleteSuccess` → `onDeleteSuccessAction` (конвенция Next.js для Server Actions)
+- ✅ Добавлена валидация URL протоколов для предотвращения XSS атак
 - ✅ Документация теперь отслеживается в git для контроля версий
 - ✅ Обновлены примеры в документации
 
