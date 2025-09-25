@@ -16,7 +16,6 @@ const Dashboard = async () => {
   }
 
   let videos: any[] = [];
-  let dbError = null;
   
   try {
     console.log('Dashboard: Starting database query for userId:', userId);
@@ -35,7 +34,6 @@ const Dashboard = async () => {
     console.log('Dashboard: Successfully fetched', videos.length, 'videos');
   } catch (error: any) {
     console.error("Database error:", error);
-    dbError = error.message;
     // Handle database error - return empty array but log error for debugging
     videos = [];
   }

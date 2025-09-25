@@ -31,9 +31,9 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 let currentUser: any = null;
 try {
 	// Проверяем, доступен ли @clerk/nextjs/server
-	const clerkModule = require("@clerk/nextjs/server");
-	currentUser = clerkModule.currentUser;
-} catch (error) {
+	const { currentUser: clerkCurrentUser } = await import("@clerk/nextjs/server");
+	currentUser = clerkCurrentUser;
+} catch {
 	// Clerk недоступен (например, в воркере)
 	console.log('Clerk not available - running in worker mode');
 }

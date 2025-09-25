@@ -1,4 +1,3 @@
-import { chunk } from "@elevenlabs/elevenlabs-js/api/resources/conversationalAi/resources/knowledgeBase/resources/documents";
 import {
   AbsoluteFill,
   Audio,
