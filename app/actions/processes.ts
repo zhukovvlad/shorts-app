@@ -1,15 +1,15 @@
 import { prisma } from "../lib/db";
 import { videoDuration } from "../lib/duration";
-import { findPrompt } from "../lib/findPrompt";
+import { findPromptInternal } from "../lib/findPrompt";
 import { generateAudio } from "./audio";
 import { generateCaptions } from "./captions";
 import { generateImages } from "./image";
 import { renderVideo } from "./render";
 import { generateScript } from "./script";
 
-export const processVideo = async (videoId: string) => {
+export const processVideo = async (videoId: string, userId: string) => {
   try {
-    const prompt = await findPrompt(videoId);
+    const prompt = await findPromptInternal(videoId, userId);
     const script = await generateScript(prompt || "");
     const scriptData = JSON.parse(script || "");
     const contentTexts = scriptData.content.map(

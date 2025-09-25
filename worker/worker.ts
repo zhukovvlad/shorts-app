@@ -16,7 +16,17 @@ const worker = new Worker('video-processing', async (job: Job) => {
     console.log(`Processing job for videoId: ${videoId}`);
 
     try {
-        await processVideo(videoId);
+        // Получаем userId из базы данных
+        const video = await prisma.video.findUnique({
+            where: { videoId },
+            select: { userId: true }
+        });
+
+        if (!video) {
+            throw new Error(`Video with ID ${videoId} not found`);
+        }
+
+        await processVideo(videoId, video.userId);
         console.log(`Completed processing for videoId: ${videoId}`);
     } catch (error) {
         console.error(`Error processing videoId ${videoId}:`, error);
@@ -45,5 +55,5 @@ worker.on('error', (err) => {
     console.log('Worker error:', err);
 })
 
-console.log('worker started, waiting for jobs')
-console.log('connected to redis ')
+console.log('Worker started, waiting for jobs - version 2')
+console.log('Connected to redis')

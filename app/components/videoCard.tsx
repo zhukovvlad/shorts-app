@@ -88,7 +88,7 @@ export const VideoCard = ({ video }: { video: any }) => {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel className="rounded-full cursor-pointer">Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:from-red-800 text-white rounded-full cursor-pointer">Delete</AlertDialogAction>
+                                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white rounded-full cursor-pointer">Delete</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>

@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import React from "react";
-import { prisma } from "../lib/db";
+import { prisma, withRetry } from "../lib/db";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -16,18 +16,27 @@ const Dashboard = async () => {
   }
 
   let videos: any[] = [];
+  let dbError = null;
+  
   try {
-    videos = await prisma.video.findMany({
-      where: {
-        userId: userId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+    console.log('Dashboard: Starting database query for userId:', userId);
+    
+    videos = await withRetry(async () => {
+      return await prisma.video.findMany({
+        where: {
+          userId: userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
     });
-  } catch (error) {
+    
+    console.log('Dashboard: Successfully fetched', videos.length, 'videos');
+  } catch (error: any) {
     console.error("Database error:", error);
-    // Handle database error - could show error UI or fallback
+    dbError = error.message;
+    // Handle database error - return empty array but log error for debugging
     videos = [];
   }
 
