@@ -18,7 +18,7 @@ export async function deleteVideo(videoId: string) {
         revalidatePath('/dashboard')
 
         return { success: true }
-    } catch (error) {
+    } catch {
         return { success: false, error: "Failed to delete video" }
     }
 }
