@@ -1,7 +1,42 @@
-"use server"
-
-import { currentUser } from "@clerk/nextjs/server"
 import { prisma } from "./db"
+
+/**
+ * Внутренняя функция для получения промпта по videoId и userId
+ * Не использует аутентификацию через Clerk - предназначена для использования в воркерах
+ */
+export const findPromptInternal = async (videoId: string, userId: string): Promise<string | null> => {
+	if (!videoId?.trim() || !userId?.trim()) {
+		return null;
+	}
+
+	try {
+		const data = await prisma.video.findFirst({
+			where: {
+				videoId: videoId.trim(),
+				userId: userId.trim(),
+			},
+			select: {
+				prompt: true,
+			}
+		});
+
+		return data?.prompt || null;
+	} catch (error) {
+		console.error('findPrompt: database error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
+		throw new Error('findPrompt: internal error');
+	}
+}
+
+// Только в Next.js окружении
+let currentUser: any = null;
+try {
+	// Проверяем, доступен ли @clerk/nextjs/server
+	const clerkModule = require("@clerk/nextjs/server");
+	currentUser = clerkModule.currentUser;
+} catch (error) {
+	// Clerk недоступен (например, в воркере)
+	console.log('Clerk not available - running in worker mode');
+}
 
 /**
  * Получает промпт для видео по его ID, только если пользователь является владельцем
@@ -10,12 +45,24 @@ import { prisma } from "./db"
  * @returns Промпт видео или null если видео не найдено или пользователь не является владельцем
  */
 export const findPrompt = async (videoId: string, userId?: string): Promise<string | null> => {
+	"use server"
+	
 	if (!videoId?.trim()) {
 		return null;
 	}
 
 	try {
-		// Всегда получаем ID пользователя только из сессии для безопасности
+		// Если Clerk недоступен и передан userId - используем его напрямую (режим воркера)
+		if (!currentUser && userId) {
+			return await findPromptInternal(videoId, userId);
+		}
+
+		// Обычный режим с аутентификацией через Clerk
+		if (!currentUser) {
+			console.warn('findPrompt: no authentication available');
+			return null;
+		}
+
 		const requestingUserId = (await currentUser())?.id;
 		
 		// Если передан userId, но он не совпадает с сессией - логируем это
@@ -28,20 +75,9 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 			return null;
 		}
 
-		// Ищем видео только среди принадлежащих пользователю из сессии
-		const data = await prisma.video.findFirst({
-			where: {
-				videoId: videoId.trim(),
-				userId: requestingUserId,
-			},
-			select: {
-				prompt: true,
-			}
-		});
-
-		return data?.prompt || null;
+		return await findPromptInternal(videoId, requestingUserId);
 	} catch (error) {
-		console.error('findPrompt: database error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
+		console.error('findPrompt: error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
 		throw new Error('findPrompt: internal error');
 	}
 }
