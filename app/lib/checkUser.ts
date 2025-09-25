@@ -1,5 +1,5 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { prisma } from "./db";
+import { prisma, withRetry } from "./db";
 
 /**
  * Проверяет существование пользователя в базе данных и возвращает его Clerk ID.
@@ -19,9 +19,11 @@ const checkUser = async (): Promise<string | null> => {
     }
 
     // Проверяем, существует ли пользователь в базе данных, чтобы избежать ненужных API вызовов
-    const existingUser = await prisma.user.findUnique({
-      where: { userId },
-      select: { userId: true }
+    const existingUser = await withRetry(async () => {
+      return await prisma.user.findUnique({
+        where: { userId },
+        select: { userId: true }
+      });
     });
 
     if (existingUser) {
@@ -40,13 +42,15 @@ const checkUser = async (): Promise<string | null> => {
     }
 
     // Создаем нового пользователя с атомарной операцией upsert
-    await prisma.user.upsert({
-      where: { userId },
-      update: {}, // Обновления не нужны, если пользователь каким-то образом уже существует
-      create: {
-        userId,
-        email,
-      },
+    await withRetry(async () => {
+      return await prisma.user.upsert({
+        where: { userId },
+        update: {}, // Обновления не нужны, если пользователь каким-то образом уже существует
+        create: {
+          userId,
+          email,
+        },
+      });
     });
 
     return userId;
