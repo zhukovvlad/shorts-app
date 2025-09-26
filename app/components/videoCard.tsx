@@ -72,11 +72,17 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48" align="end">
-                        <DropdownMenuItem onClick={handleDownload} className="cursor-pointer">
+                        <DropdownMenuItem
+                            onSelect={(e) => { e.preventDefault(); e.stopPropagation(); handleDownload(); }}
+                            className="cursor-pointer"
+                        >
                             <Download className="mr-2 h-4 w-4" />
                             <span>Download</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
+                        <DropdownMenuItem
+                            onSelect={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyLink(); }}
+                            className="cursor-pointer"
+                        >
                             <Copy className="mr-2 h-4 w-4" />
                             <span>Copy Link</span>
                         </DropdownMenuItem>
