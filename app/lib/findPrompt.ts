@@ -27,15 +27,17 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 	}
 }
 
-// Только в Next.js окружении
-let currentUser: any = null;
-try {
-	// Проверяем, доступен ли @clerk/nextjs/server
-	const { currentUser: clerkCurrentUser } = await import("@clerk/nextjs/server");
-	currentUser = clerkCurrentUser;
-} catch {
-	// Clerk недоступен (например, в воркере)
-	console.log('Clerk not available - running in worker mode');
+// Функция для получения currentUser с отложенным импортом
+async function getCurrentUser() {
+	try {
+		// Проверяем, доступен ли @clerk/nextjs/server
+		const { currentUser } = await import("@clerk/nextjs/server");
+		return currentUser;
+	} catch {
+		// Clerk недоступен (например, в воркере)
+		console.log('Clerk not available - running in worker mode');
+		return null;
+	}
 }
 
 /**
@@ -52,6 +54,8 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 	}
 
 	try {
+		const currentUser = await getCurrentUser();
+		
 		// Если Clerk недоступен и передан userId - используем его напрямую (режим воркера)
 		if (!currentUser && userId) {
 			return await findPromptInternal(videoId, userId);
