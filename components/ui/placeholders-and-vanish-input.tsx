@@ -8,7 +8,7 @@ interface ParticleData {
   x: number;
   y: number;
   r: number;
-  color: number[] | string;
+  color: [number, number, number, number]; // RGBA as numeric tuple
 }
 
 interface PlaceholdersAndVanishInputProps {
@@ -108,7 +108,7 @@ export function PlaceholdersAndVanishInput({
       x,
       y,
       r: 1,
-      color: `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`,
+      color: [color[0], color[1], color[2], color[3]], // Keep as numeric array
     }));
   }, [value]);
 
@@ -140,15 +140,13 @@ export function PlaceholdersAndVanishInput({
         if (ctx) {
           ctx.clearRect(pos, 0, 800, 800);
           newDataRef.current.forEach((t) => {
-            const { x: n, y: i, r: s, color: color } = t;
+            const { x: n, y: i, r: s, color } = t;
             if (n > pos) {
               ctx.beginPath();
               ctx.rect(n, i, s, s);
               
-              // Конвертируем цвет в строку
-              const colorString = Array.isArray(color) 
-                ? `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`
-                : color;
+              // Convert numeric color to rgba string with proper alpha handling
+              const colorString = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
               
               ctx.fillStyle = colorString;
               ctx.strokeStyle = colorString;

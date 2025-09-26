@@ -8,7 +8,15 @@ import Link from "next/link"
 import Image from "next/image"
 import { useVideoActions } from "../hooks/useVideoActions"
 
-export const VideoCard = ({ video }: { video: any }) => {
+interface VideoCardVideo {
+    videoId: string;
+    videoUrl: string;
+    thumbnail?: string;
+    prompt?: string;
+    createdAt: string | Date;
+}
+
+export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
     const {
         handleDownload,
         handleCopyLink,
@@ -27,6 +35,7 @@ export const VideoCard = ({ video }: { video: any }) => {
                             src={video.thumbnail}
                             alt="Video Thumbnail"
                             fill
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                             className="object-cover"
                         />
                     ) : (
