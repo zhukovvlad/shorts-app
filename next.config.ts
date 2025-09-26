@@ -15,17 +15,16 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*.amazonaws.com',
+        hostname: 'remotionlambda-eunorth1-835ln9mr0e.s3.eu-north-1.amazonaws.com',
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: '*.s3.*.amazonaws.com',
+        hostname: 'shorts-zhukovvlad.s3.eu-north-1.amazonaws.com',
         port: '',
         pathname: '/**',
       },
-      // Add additional patterns for other common image hosting services
       {
         protocol: 'https',
         hostname: 'images.unsplash.com',
@@ -35,6 +34,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'cdn.openai.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.w3.org',
         port: '',
         pathname: '/**',
       },
