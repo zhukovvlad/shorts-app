@@ -15,13 +15,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'remotionlambda-eunorth1-835ln9mr0e.s3.eu-north-1.amazonaws.com',
+        hostname: process.env.REMOTION_LAMBDA_S3_HOSTNAME || 'remotionlambda-eunorth1-835ln9mr0e.s3.eu-north-1.amazonaws.com',
         port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
-        hostname: 'shorts-zhukovvlad.s3.eu-north-1.amazonaws.com',
+        hostname: process.env.SHORTS_S3_HOSTNAME || 'shorts-zhukovvlad.s3.eu-north-1.amazonaws.com',
         port: '',
         pathname: '/**',
       },
