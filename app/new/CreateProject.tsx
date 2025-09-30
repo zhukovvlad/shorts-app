@@ -1,13 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { SignInButton, SignOutButton, SignUpButton } from "@clerk/nextjs";
-import Link from "next/link";
+import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useState } from "react";
 import { Cover } from "@/components/ui/cover";
 import { ShineBorder } from "@/components/magicui/shine-border";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
-import TooltipCredits from "../components/creditsButton";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import {
   Dialog,
@@ -19,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { createVideo } from "../actions/create";
+import Link from "next/link";
 
 const CreateProject = ({
   user,
@@ -47,38 +46,7 @@ const CreateProject = ({
 
   return (
     <div className="w-screen h-screen flex flex-col">
-      {!user && (
-        <div className="flex justify-end gap-2 mr-4 sm:mr-7 mt-5 px-4 sm:px-0">
-          <SignInButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
-              Sign In
-            </Button>
-          </SignInButton>
-          <SignUpButton>
-            <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4">
-              Sign Up
-            </Button>
-          </SignUpButton>
-        </div>
-      )}
-      {user && (
-        <div className="flex justify-end items-center gap-2 mr-4 sm:mr-7 mt-5 px-4 sm:px-0">
-          <TooltipCredits credits={credits} />
-          <Button
-            asChild
-            className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4"
-          >
-            <Link href="/dashboard">Dashboard</Link>
-          </Button>
-          <SignOutButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
-              Sign Out
-            </Button>
-          </SignOutButton>
-        </div>
-      )}
-
-      <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold max-w-7xl mx-auto text-center mt-6 relative z-20 py-6 bg-clip-text text-transparent bg-gradient-to-b from-neutral-800 via-neutral-700 to-neutral-700 dark:from-neutral-800 dark:via-white dark:to-white px-4">
+      <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold max-w-7xl mx-auto text-center mt-2 relative z-20 py-6 bg-clip-text text-transparent bg-gradient-to-b from-neutral-800 via-neutral-700 to-neutral-700 dark:from-neutral-800 dark:via-white dark:to-white px-4">
         Generate Realistic Shorts
         <div className="h-6"></div>
         <Cover>warp speed</Cover>

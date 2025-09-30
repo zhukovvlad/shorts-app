@@ -1,12 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import React from "react";
 import { prisma, withRetry } from "../lib/db";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { SignOutButton } from "@clerk/nextjs";
 import { VideoCard } from "../components/videoCard";
 import { redirect } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 
 const Dashboard = async () => {
   const { userId } = await auth();
@@ -39,27 +38,9 @@ const Dashboard = async () => {
   }
 
     return (
-      <div className="container mx-auto p-4 sm:p-6">
+      <div className="container mx-auto p-4 sm:p-6 mt-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold">Your Videos</h1>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button 
-              asChild 
-              className="w-full sm:w-auto bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4 flex-1 sm:flex-initial"
-            >
-              <Link href="/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New
-              </Link>
-            </Button>
-
-            <SignOutButton>
-              <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
-                Sign Out
-              </Button>
-            </SignOutButton>
-          </div>
         </div>
 
         {videos.length === 0 ? (
