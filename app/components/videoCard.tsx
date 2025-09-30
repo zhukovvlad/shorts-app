@@ -7,6 +7,7 @@ import { Copy, Download, MoreVertical, Trash2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useVideoActions } from "../hooks/useVideoActions"
+import { useState } from "react"
 
 interface VideoCardVideo {
     videoId: string;
@@ -17,14 +18,15 @@ interface VideoCardVideo {
 }
 
 export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
+    const [dropdownOpen, setDropdownOpen] = useState(false)
     const {
-        handleDownload,
-        handleCopyLink,
+        isDeleting,
         handleDelete,
-        isDeleting
+        handleDownload,
+        handleCopyLink
     } = useVideoActions({
-        videoId: video.videoId,
         videoUrl: video.videoUrl,
+        videoId: video.videoId,
     })
     return (
         <div className='border bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 relative'>
@@ -60,7 +62,7 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
                 </div>
             </Link>
             <div className="absolute bottom-2 right-2">
-                <DropdownMenu>
+                <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
                     <DropdownMenuTrigger asChild>
                         <Button
                             variant="ghost"
@@ -73,14 +75,14 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48" align="end">
                         <DropdownMenuItem
-                            onSelect={(e) => { e.stopPropagation(); handleDownload(); }}
+                            onSelect={(e) => { e.stopPropagation(); handleDownload(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
                             <Download className="mr-2 h-4 w-4" />
                             <span>Download</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                            onSelect={(e) => { e.stopPropagation(); handleCopyLink(); }}
+                            onSelect={(e) => { e.stopPropagation(); handleCopyLink(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
                             <Copy className="mr-2 h-4 w-4" />
@@ -104,8 +106,8 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel className="rounded-full cursor-pointer">Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white rounded-full cursor-pointer">Delete</AlertDialogAction>
+                                    <AlertDialogCancel onClick={() => setDropdownOpen(false)} className="rounded-full cursor-pointer">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => { handleDelete(); setDropdownOpen(false); }} disabled={isDeleting} className="bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white rounded-full cursor-pointer">Delete</AlertDialogAction>
                                 </AlertDialogFooter>
                             </AlertDialogContent>
                         </AlertDialog>
