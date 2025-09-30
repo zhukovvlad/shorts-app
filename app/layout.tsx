@@ -6,6 +6,7 @@ import {
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import NavigationWrapper from "@/components/NavigationWrapper";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -27,6 +28,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <NavigationWrapper />
             {children}
             <Toaster theme="dark" position="top-right" richColors />
           </ThemeProvider>
