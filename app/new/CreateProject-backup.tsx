@@ -237,3 +237,32 @@ const CreateProject = ({
 };
 
 export default CreateProject;
+                to continue creating amazing content.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button
+                className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer"
+                onClick={() => {
+                  router.push("/pricing");
+                  setShowCreditDialog(false);
+                }}
+              >
+                View Pricing
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full cursor-pointer"
+                onClick={() => setShowCreditDialog(false)}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
+};
+
+export default CreateProject;

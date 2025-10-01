@@ -40,9 +40,9 @@ const Navigation = ({ credits }: NavigationProps) => {
   return (
     <nav className="flex justify-between items-center gap-4 px-4 sm:px-6 lg:px-8 py-4">
       {/* Logo and Title */}
-      <Link href="/dashboard" className="flex items-center gap-2 sm:gap-3 text-white hover:opacity-80 transition-opacity">
+      <Link href="/dashboard" className="flex items-center gap-2 sm:gap-3 text-white hover:opacity-80 transition-opacity" aria-label="Home - ShortsApp Dashboard">
         <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-[#3352CC] to-[#1C2D70] rounded-lg">
-          <Video className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+          <Video className="h-4 w-4 sm:h-5 sm:w-5 text-white" aria-hidden="true" />
         </div>
         <span className="font-bold text-base sm:text-lg lg:text-xl text-gray-900 dark:text-white hidden sm:block">ShortsApp</span>
       </Link>
