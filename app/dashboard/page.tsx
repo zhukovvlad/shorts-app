@@ -4,9 +4,10 @@ import { prisma, withRetry } from "../lib/db";
 import { VideoCard } from "../components/videoCard";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DashboardEmptyState } from "../components/DashboardEmptyState";
+import { RefreshButton } from "../components/RefreshButton";
 
 const Dashboard = async () => {
   const { userId } = await auth();
@@ -39,9 +40,9 @@ const Dashboard = async () => {
   }
 
   // Анализируем статусы видео для умного отображения
-  const completedVideos = videos.filter(video => video.status === 'completed' || video.videoUrl);
-  const processingVideos = videos.filter(video => video.status === 'processing' || (!video.videoUrl && !video.status));
-  const errorVideos = videos.filter(video => video.status === 'error');
+  const completedVideos = videos.filter(video => !video.processing && !video.failed && !!video.videoUrl);
+  const processingVideos = videos.filter(video => video.processing);
+  const errorVideos = videos.filter(video => video.failed === true);
 
   const getEmptyStateVariant = () => {
     if (videos.length === 0) return 'no-videos';
@@ -66,17 +67,7 @@ const Dashboard = async () => {
         
         {videos.length > 0 && (
           <div className="flex gap-2">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-full"
-            >
-              <Link href="/dashboard">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Обновить
-              </Link>
-            </Button>
+            <RefreshButton />
             <Button
               asChild
               className="bg-gradient-to-br hover:opacity-90 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer"
