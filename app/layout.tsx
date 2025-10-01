@@ -28,7 +28,9 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <NavigationWrapper />
+            <header>
+              <NavigationWrapper />
+            </header>
             {children}
             <Toaster theme="dark" position="top-right" richColors />
           </ThemeProvider>
