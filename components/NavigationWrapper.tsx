@@ -1,4 +1,3 @@
-import React from "react";
 import { auth } from "@clerk/nextjs/server";
 import { userCredits } from "@/app/lib/userCredits";
 import Navigation from "./Navigation";
