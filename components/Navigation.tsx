@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import TooltipCredits from "@/app/components/creditsButton";
 import { usePathname } from "next/navigation";
 
-interface NavigationProps {
+type NavigationProps = {
   credits?: number;
 }
 
@@ -16,11 +16,8 @@ const Navigation = ({ credits }: NavigationProps) => {
   const pathname = usePathname();
 
   // Don't show navigation on auth pages, pricing, success, cancel pages
-  if (pathname?.includes('/sign-in') || 
-      pathname?.includes('/sign-up') || 
-      pathname === '/pricing' || 
-      pathname === '/success' || 
-      pathname === '/cancel') {
+  const excludedRoutes = ['/sign-in', '/sign-up', '/pricing', '/success', '/cancel'];
+  if (excludedRoutes.some(route => pathname?.startsWith(route))) {
     return null;
   }
 
@@ -28,17 +25,21 @@ const Navigation = ({ credits }: NavigationProps) => {
     return null;
   }
 
+  // Button style constants for better maintainability
+  const gradientButtonClass = "bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4";
+  const outlineButtonClass = "bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4";
+
   return (
     <nav className="flex justify-end items-center gap-2 mr-4 sm:mr-7 mt-5 px-4 sm:px-0">
       {!user ? (
         <>
           <SignInButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
+            <Button className={outlineButtonClass}>
               Sign In
             </Button>
           </SignInButton>
           <SignUpButton>
-            <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4">
+            <Button className={gradientButtonClass}>
               Sign Up
             </Button>
           </SignUpButton>
@@ -50,7 +51,7 @@ const Navigation = ({ credits }: NavigationProps) => {
           {pathname !== '/new' && (
             <Button
               asChild
-              className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4"
+              className={gradientButtonClass}
             >
               <Link href="/new">
                 <Plus className="h-4 w-4 mr-2" />
@@ -62,14 +63,14 @@ const Navigation = ({ credits }: NavigationProps) => {
           {pathname !== '/dashboard' && (
             <Button
               asChild
-              className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer text-sm sm:text-base px-3 sm:px-4"
+              className={gradientButtonClass}
             >
               <Link href="/dashboard">Dashboard</Link>
             </Button>
           )}
           
           <SignOutButton>
-            <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer text-sm sm:text-base px-3 sm:px-4">
+            <Button className={outlineButtonClass}>
               Sign Out
             </Button>
           </SignOutButton>

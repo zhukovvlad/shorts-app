@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
 import { createVideo } from "../actions/create";
-import Link from "next/link";
 
 const CreateProject = ({
   user,

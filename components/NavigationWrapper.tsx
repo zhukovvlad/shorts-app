@@ -1,20 +1,17 @@
+import React from "react";
 import { auth } from "@clerk/nextjs/server";
 import { userCredits } from "@/app/lib/userCredits";
 import Navigation from "./Navigation";
 
-const NavigationWrapper = async () => {
+const NavigationWrapper = async (): Promise<React.ReactElement> => {
   const { userId } = await auth();
   
-  let credits = 0;
+  let credits: number | undefined = undefined;
   if (userId) {
-    try {
-      credits = await userCredits(userId);
-    } catch (error) {
-      console.error("Error fetching user credits:", error);
-    }
+    credits = await userCredits(userId);
   }
 
-  return <Navigation credits={userId ? credits : undefined} />;
+  return <Navigation credits={credits} />;
 };
 
 export default NavigationWrapper;
