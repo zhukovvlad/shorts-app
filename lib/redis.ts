@@ -60,14 +60,35 @@ function getRedisInstance(): Redis {
 }
 
 export const VIDEO_PROGRESS_PREFIX = 'video_progress:';
+export const VIDEO_CHECKPOINT_PREFIX = 'video_checkpoint:';
 export const VIDEO_PROGRESS_TTL = 3600; // 1 час
+export const VIDEO_CHECKPOINT_TTL = 7200; // 2 часа (дольше чем прогресс)
 
 export interface VideoProgress {
-  status: 'script' | 'images' | 'audio' | 'captions' | 'render' | 'completed' | 'error';
+  status: 'script' | 'images' | 'audio' | 'captions' | 'render' | 'completed' | 'error' | 'retrying';
   step?: string;
   error?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  lastError?: string;
+  retryReason?: string;
   timestamp: number;
   userId: string;
+}
+
+export interface VideoCheckpoint {
+  videoId: string;
+  userId: string;
+  completedSteps: {
+    script: boolean;
+    images: boolean;
+    audio: boolean;
+    captions: boolean;
+    render: boolean;
+  };
+  lastCompletedStep?: string;
+  lastFailedStep?: string;
+  timestamp: number;
 }
 
 export const setVideoProgress = async (videoId: string, progress: VideoProgress) => {
@@ -101,6 +122,110 @@ export const deleteVideoProgress = async (videoId: string) => {
   } catch (error) {
     console.error('Failed to delete video progress from Redis:', error);
     // В случае ошибки не блокируем процесс
+  }
+};
+
+// === CHECKPOINT СИСТЕМА ===
+
+export const setVideoCheckpoint = async (videoId: string, checkpoint: VideoCheckpoint) => {
+  try {
+    const redis = getRedisInstance();
+    const key = `${VIDEO_CHECKPOINT_PREFIX}${videoId}`;
+    await redis.setex(key, VIDEO_CHECKPOINT_TTL, JSON.stringify(checkpoint));
+  } catch (error) {
+    console.error('Failed to set video checkpoint in Redis:', error);
+  }
+};
+
+export const getVideoCheckpoint = async (videoId: string): Promise<VideoCheckpoint | null> => {
+  try {
+    const redis = getRedisInstance();
+    const key = `${VIDEO_CHECKPOINT_PREFIX}${videoId}`;
+    const data = await redis.get(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Failed to get video checkpoint from Redis:', error);
+    return null;
+  }
+};
+
+export const markStepCompleted = async (videoId: string, userId: string, step: string) => {
+  try {
+    const checkpoint = await getVideoCheckpoint(videoId) || {
+      videoId,
+      userId,
+      completedSteps: {
+        script: false,
+        images: false,
+        audio: false,
+        captions: false,
+        render: false
+      },
+      timestamp: Date.now()
+    };
+
+    // Отмечаем шаг как завершенный
+    if (step in checkpoint.completedSteps) {
+      checkpoint.completedSteps[step as keyof typeof checkpoint.completedSteps] = true;
+      checkpoint.lastCompletedStep = step;
+      checkpoint.timestamp = Date.now();
+      
+      await setVideoCheckpoint(videoId, checkpoint);
+      console.log(`✅ Checkpoint: Step '${step}' completed for video ${videoId}`);
+    }
+  } catch (error) {
+    console.error('Failed to mark step as completed:', error);
+  }
+};
+
+export const markStepFailed = async (videoId: string, userId: string, step: string) => {
+  try {
+    const checkpoint = await getVideoCheckpoint(videoId) || {
+      videoId,
+      userId,
+      completedSteps: {
+        script: false,
+        images: false,
+        audio: false,
+        captions: false,
+        render: false
+      },
+      timestamp: Date.now()
+    };
+
+    checkpoint.lastFailedStep = step;
+    checkpoint.timestamp = Date.now();
+    
+    await setVideoCheckpoint(videoId, checkpoint);
+    console.log(`❌ Checkpoint: Step '${step}' failed for video ${videoId}`);
+  } catch (error) {
+    console.error('Failed to mark step as failed:', error);
+  }
+};
+
+export const getNextStep = (checkpoint: VideoCheckpoint | null): string => {
+  if (!checkpoint) return 'script';
+  
+  const steps = ['script', 'images', 'audio', 'captions', 'render'];
+  const completed = checkpoint.completedSteps;
+  
+  // Находим первый незавершенный шаг
+  for (const step of steps) {
+    if (!completed[step as keyof typeof completed]) {
+      return step;
+    }
+  }
+  
+  return 'completed'; // Все шаги завершены
+};
+
+export const deleteVideoCheckpoint = async (videoId: string) => {
+  try {
+    const redis = getRedisInstance();
+    const key = `${VIDEO_CHECKPOINT_PREFIX}${videoId}`;
+    await redis.del(key);
+  } catch (error) {
+    console.error('Failed to delete video checkpoint from Redis:', error);
   }
 };
 

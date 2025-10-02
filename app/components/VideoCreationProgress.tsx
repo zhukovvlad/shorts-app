@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle, Clock, Loader2 } from "lucide-react";
+import { CheckCircle, Clock, Loader2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProgressStep {
@@ -15,6 +15,10 @@ interface VideoCreationProgressProps {
   currentStep: string;
   step?: string;
   error?: string;
+  retryCount?: number;
+  maxRetries?: number;
+  lastError?: string;
+  retryReason?: string;
   className?: string;
 }
 
@@ -59,7 +63,11 @@ const defaultSteps: ProgressStep[] = [
 export const VideoCreationProgress = ({ 
   currentStep, 
   step,
-  error, 
+  error,
+  retryCount,
+  maxRetries,
+  lastError,
+  retryReason,
   className 
 }: VideoCreationProgressProps) => {
   // Обновляем статусы шагов на основе текущего шага
@@ -67,8 +75,11 @@ export const VideoCreationProgress = ({
     const stepIndex = defaultSteps.findIndex(s => s.id === step.id);
     const currentIndex = defaultSteps.findIndex(s => s.id === currentStep);
     
-    if (error && step.id === currentStep) {
+    if (error && step.id === currentStep && !retryCount) {
       return { ...step, status: 'error' as const };
+    } else if (currentStep === 'retrying' && stepIndex === currentIndex - 1) {
+      // Если происходит ретрай, показываем предыдущий шаг как "текущий" с ретраем
+      return { ...step, status: 'current' as const };
     } else if (stepIndex < currentIndex) {
       return { ...step, status: 'completed' as const };
     } else if (step.id === currentStep) {
@@ -90,8 +101,22 @@ export const VideoCreationProgress = ({
         <h3 className="text-xl font-semibold text-white mb-2">
           Создание вашего видео
         </h3>
-        {error ? (
+        {error && !retryCount ? (
           <p className="text-red-400 text-sm">Произошла ошибка: {error}</p>
+        ) : retryCount ? (
+          <div className="space-y-1">
+            <p className="text-yellow-400 text-sm font-medium">
+              Повторная попытка {retryCount}/{maxRetries || 3}
+            </p>
+            <p className="text-gray-300 text-xs">
+              {retryReason || 'Возникла временная проблема, пытаемся снова...'}
+            </p>
+            {lastError && (
+              <p className="text-gray-400 text-xs">
+                Предыдущая ошибка: {lastError.length > 100 ? lastError.substring(0, 100) + '...' : lastError}
+              </p>
+            )}
+          </div>
         ) : (
           <p className="text-gray-300 text-sm">
             {step || (currentStepData ? `${currentStepData.name}...` : 'Инициализация...')}
@@ -116,8 +141,11 @@ export const VideoCreationProgress = ({
       {/* Steps */}
       <div className="space-y-4">
         {steps.map((step, index) => {
+          const isRetrying = retryCount && step.status === 'current';
           const Icon = step.status === 'completed' 
             ? CheckCircle 
+            : isRetrying
+              ? RotateCcw
             : step.status === 'current' 
               ? Loader2 
               : step.status === 'error'
@@ -129,7 +157,8 @@ export const VideoCreationProgress = ({
               key={step.id}
               className={cn(
                 "flex items-start gap-4 p-4 rounded-lg transition-all duration-300",
-                step.status === 'current' && "bg-blue-500/10 border border-blue-500/20",
+                step.status === 'current' && !isRetrying && "bg-blue-500/10 border border-blue-500/20",
+                step.status === 'current' && isRetrying && "bg-yellow-500/10 border border-yellow-500/20",
                 step.status === 'completed' && "bg-green-500/10 border border-green-500/20",
                 step.status === 'error' && "bg-red-500/10 border border-red-500/20",
                 step.status === 'pending' && "bg-gray-700/30"
@@ -139,14 +168,16 @@ export const VideoCreationProgress = ({
               <div className={cn(
                 "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
                 step.status === 'completed' && "bg-green-500 text-white",
-                step.status === 'current' && "bg-blue-500 text-white",
+                step.status === 'current' && !isRetrying && "bg-blue-500 text-white",
+                step.status === 'current' && isRetrying && "bg-yellow-500 text-white",
                 step.status === 'error' && "bg-red-500 text-white", 
                 step.status === 'pending' && "bg-gray-600 text-gray-300"
               )}>
                 <Icon 
                   className={cn(
                     "h-4 w-4",
-                    step.status === 'current' && "animate-spin"
+                    step.status === 'current' && !isRetrying && "animate-spin",
+                    isRetrying && "animate-spin"
                   )} 
                 />
               </div>
@@ -157,11 +188,17 @@ export const VideoCreationProgress = ({
                   <h4 className={cn(
                     "font-medium",
                     step.status === 'completed' && "text-green-400",
-                    step.status === 'current' && "text-blue-400",
+                    step.status === 'current' && !isRetrying && "text-blue-400",
+                    step.status === 'current' && isRetrying && "text-yellow-400",
                     step.status === 'error' && "text-red-400",
                     step.status === 'pending' && "text-gray-400"
                   )}>
                     {step.name}
+                    {isRetrying && (
+                      <span className="ml-2 text-xs text-yellow-300">
+                        (повтор {retryCount}/{maxRetries})
+                      </span>
+                    )}
                   </h4>
                   {step.estimatedTime && step.status === 'current' && (
                     <span className="text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
@@ -181,8 +218,10 @@ export const VideoCreationProgress = ({
       {/* Footer */}
       <div className="mt-6 pt-4 border-t border-gray-700">
         <p className="text-xs text-gray-400 text-center">
-          {error ? (
+          {error && !retryCount ? (
             "Пожалуйста, попробуйте позже или обратитесь в поддержку"
+          ) : retryCount ? (
+            `Автоматическая повторная попытка... Обычно проблемы решаются за несколько попыток.`
           ) : currentStepData?.status === 'current' ? (
             `Обычно ${currentStepData.name.toLowerCase()} занимает ${currentStepData.estimatedTime}`
           ) : (

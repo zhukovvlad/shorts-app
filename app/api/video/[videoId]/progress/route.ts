@@ -28,6 +28,10 @@ export async function GET(
         status: progress.status,
         step: progress.step,
         error: progress.error,
+        retryCount: progress.retryCount,
+        maxRetries: progress.maxRetries,
+        lastError: progress.lastError,
+        retryReason: progress.retryReason,
         videoId
       });
     }

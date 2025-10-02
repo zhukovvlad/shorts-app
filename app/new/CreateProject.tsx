@@ -182,6 +182,10 @@ const CreateProject = ({
             currentStep={progress.status}
             step={progress.step}
             error={progress.status === 'error' ? progress.error : undefined}
+            retryCount={progress.retryCount}
+            maxRetries={progress.maxRetries}
+            lastError={progress.lastError}
+            retryReason={progress.retryReason}
             className="mt-8"
           />
         )}
