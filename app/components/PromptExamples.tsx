@@ -88,9 +88,54 @@ export const PromptExamples = ({ onSelectPrompt, className }: PromptExamplesProp
     ? promptExamples 
     : promptExamples.filter(example => example.category === selectedCategory);
 
-  const handleCopyPrompt = (prompt: string) => {
-    navigator.clipboard.writeText(prompt);
-    toast.success("Промпт скопирован в буфер обмена!");
+  const handleCopyPrompt = async (prompt: string) => {
+    try {
+      // Check if Clipboard API is available
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(prompt);
+        toast.success("Промпт скопирован в буфер обмена!");
+      } else {
+        // Fallback method using document.execCommand
+        const success = copyToClipboardFallback(prompt);
+        if (success) {
+          toast.success("Промпт скопирован в буфер обмена!");
+        } else {
+          toast.error("Не удалось скопировать промпт. Попробуйте выделить и скопировать текст вручную.");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to copy prompt:", error);
+      // Try fallback method if Clipboard API fails
+      const success = copyToClipboardFallback(prompt);
+      if (success) {
+        toast.success("Промпт скопирован в буфер обмена!");
+      } else {
+        toast.error("Не удалось скопировать промпт. Попробуйте выделить и скопировать текст вручную.");
+      }
+    }
+  };
+
+  const copyToClipboardFallback = (text: string): boolean => {
+    try {
+      // Create a temporary textarea element
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      textarea.style.pointerEvents = 'none';
+      
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, text.length);
+      
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      return success;
+    } catch (error) {
+      console.error("Fallback copy method failed:", error);
+      return false;
+    }
   };
 
   const handleUsePrompt = (prompt: string) => {
@@ -179,6 +224,8 @@ export const PromptExamples = ({ onSelectPrompt, className }: PromptExamplesProp
                     variant="ghost"
                     onClick={() => handleCopyPrompt(example.prompt)}
                     className="h-8 w-8 p-0 hover:bg-gray-700"
+                    aria-label="Copy prompt"
+                    title="Copy prompt to clipboard"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>

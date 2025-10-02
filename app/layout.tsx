@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "ShortsApp - Create Viral Videos with AI",
     description: "Transform any idea into engaging short videos in minutes using AI. Perfect for TikTok, YouTube Shorts, and Instagram Reels.",
-    url: "/",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "https://localhost:3000",
     siteName: "ShortsApp",
     locale: "en_US",
     type: "website",
