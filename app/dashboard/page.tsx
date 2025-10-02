@@ -9,6 +9,17 @@ import { DashboardEmptyState } from "../components/DashboardEmptyState";
 import { RefreshButton } from "../components/RefreshButton";
 import { logger } from "@/lib/logger";
 import { unstable_cache } from 'next/cache';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
+const ITEMS_PER_PAGE = 20;
 
 // Кэшированная функция для получения видео
 const getCachedVideos = unstable_cache(
@@ -23,8 +34,7 @@ const getCachedVideos = unstable_cache(
         orderBy: {
           createdAt: "desc",
         },
-        // Добавляем лимит для улучшения производительности
-        take: 100,
+        // Получаем все видео для корректной пагинации
       });
     });
     
@@ -38,12 +48,19 @@ const getCachedVideos = unstable_cache(
   }
 );
 
-const Dashboard = async () => {
+const Dashboard = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) => {
   const { userId } = await auth();
 
   if (!userId) {
     redirect("/sign-in");
   }
+
+  const params = await searchParams;
+  const currentPage = Number(params.page) || 1;
 
   let videos: any[] = [];
   
@@ -55,7 +72,14 @@ const Dashboard = async () => {
     videos = [];
   }
 
-  // Анализируем статусы видео для умного отображения
+  // Вычисляем пагинацию
+  const totalVideos = videos.length;
+  const totalPages = Math.ceil(totalVideos / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedVideos = videos.slice(startIndex, endIndex);
+
+  // Анализируем статусы видео для умного отображения (используем все видео для статистики)
   const completedVideos = videos.filter(video => !video.processing && !video.failed && !!video.videoUrl);
   const processingVideos = videos.filter(video => video.processing);
   const errorVideos = videos.filter(video => video.failed === true);
@@ -108,11 +132,70 @@ const Dashboard = async () => {
           )}
           
           {/* Videos grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {videos.map((video) => (
-              <VideoCard key={video.videoId} video={video} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
+            {paginatedVideos.map((video, index) => (
+              <VideoCard 
+                key={video.videoId} 
+                video={video} 
+                priority={index < 5}
+              />
             ))}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      href={currentPage > 1 ? `/dashboard?page=${currentPage - 1}` : '#'}
+                      className={currentPage <= 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Показываем первую, последнюю, текущую и соседние страницы
+                    const showPage = 
+                      page === 1 || 
+                      page === totalPages || 
+                      (page >= currentPage - 1 && page <= currentPage + 1);
+                    
+                    const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
+                    const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
+
+                    if (showEllipsisBefore || showEllipsisAfter) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+
+                    if (!showPage) return null;
+
+                    return (
+                      <PaginationItem key={page}>
+                        <PaginationLink 
+                          href={`/dashboard?page=${page}`}
+                          isActive={currentPage === page}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  
+                  <PaginationItem>
+                    <PaginationNext 
+                      href={currentPage < totalPages ? `/dashboard?page=${currentPage + 1}` : '#'}
+                      className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </>
       )}
     </div>
