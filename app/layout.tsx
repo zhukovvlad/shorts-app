@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import NavigationWrapper from "@/components/NavigationWrapper";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: "ShortsApp - Create Viral Videos with AI",
   description: "Transform any idea into engaging short videos in minutes using AI. Perfect for TikTok, YouTube Shorts, and Instagram Reels. No editing skills required.",
   keywords: "AI video generator, short videos, TikTok content, YouTube Shorts, Instagram Reels, viral videos, video creation, artificial intelligence",
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "ShortsApp - Create Viral Videos with AI",
     description: "Transform any idea into engaging short videos in minutes using AI. Perfect for TikTok, YouTube Shorts, and Instagram Reels.",
-    url: process.env.NEXT_PUBLIC_SITE_URL || "https://localhost:3000",
+    url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
     siteName: "ShortsApp",
     locale: "en_US",
     type: "website",

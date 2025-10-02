@@ -1,4 +1,5 @@
 import { prisma } from "./db"
+import { logger } from "@/lib/logger"
 
 /**
  * Внутренняя функция для получения промпта по videoId и userId
@@ -22,7 +23,7 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 
 		return data?.prompt || null;
 	} catch (error) {
-		console.error('findPrompt: database error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
+		logger.error('findPrompt: database error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
 		throw new Error('findPrompt: internal error');
 	}
 }
@@ -35,7 +36,7 @@ async function getCurrentUser() {
 		return currentUser;
 	} catch {
 		// Clerk недоступен (например, в воркере)
-		console.log('Clerk not available - running in worker mode');
+		logger.debug('findPrompt: running in worker mode');
 		return null;
 	}
 }
@@ -63,7 +64,7 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 
 		// Обычный режим с аутентификацией через Clerk
 		if (!currentUser) {
-			console.warn('findPrompt: no authentication available');
+			logger.warn('findPrompt: no authentication available');
 			return null;
 		}
 
@@ -71,17 +72,17 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 		
 		// Если передан userId, но он не совпадает с сессией - логируем это
 		if (userId && userId !== requestingUserId) {
-			console.warn('findPrompt: attempted access with mismatched userId for video');
+			logger.warn('findPrompt: attempted access with mismatched userId for video');
 		}
 		
 		if (!requestingUserId) {
-			console.warn('findPrompt: unauthorized access attempt to video');
+			logger.warn('findPrompt: unauthorized access attempt to video');
 			return null;
 		}
 
 		return await findPromptInternal(videoId, requestingUserId);
 	} catch (error) {
-		console.error('findPrompt: error occurred', error instanceof Error ? { message: error.message, name: error.name } : { message: 'unknown error' });
+		logger.error('findPrompt: error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
 		throw new Error('findPrompt: internal error');
 	}
 }

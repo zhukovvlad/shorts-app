@@ -1,5 +1,6 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "./db";
+import { logger } from "@/lib/logger";
 
 /**
  * Получает количество кредитов пользователя
@@ -22,7 +23,7 @@ export const userCredits = async (userIdFromCaller?: string | null): Promise<num
     });
 
     if (!userData) {
-      console.warn(`Пользователь с ID ${resolvedUserId} не найден в базе данных`);
+      logger.warn('Пользователь не найден в базе данных', { userId: resolvedUserId });
       return 0;
     }
 

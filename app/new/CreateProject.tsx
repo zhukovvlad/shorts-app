@@ -9,6 +9,7 @@ import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-van
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import PromptExamples from "../components/PromptExamples";
 import VideoCreationProgress from "../components/VideoCreationProgress";
+import { logger } from "@/lib/logger";
 import {
   Dialog,
   DialogContent,
@@ -106,7 +107,7 @@ const CreateProject = ({
                       setError("Failed to create video. Please try again.");
                     }
                   } catch (err: any) {
-                    console.error("Video creation error:", err);
+                    logger.error("Video creation error", { error: err instanceof Error ? err.message : String(err) });
                     if (err?.message?.includes('not authenticated')) {
                       setError("Authentication required. Please sign in again.");
                       setShowLoginDialog(true);

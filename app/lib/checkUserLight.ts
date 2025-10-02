@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "./db";
+import { logger } from "@/lib/logger";
 
 /**
  * Облегченная версия checkUser, которая только проверяет существование пользователя в базе данных

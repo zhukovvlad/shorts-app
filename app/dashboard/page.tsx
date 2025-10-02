@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DashboardEmptyState } from "../components/DashboardEmptyState";
 import { RefreshButton } from "../components/RefreshButton";
+import { logger } from "@/lib/logger";
 
 const Dashboard = async () => {
   const { userId } = await auth();
@@ -19,7 +20,7 @@ const Dashboard = async () => {
   let videos: any[] = [];
   
   try {
-    console.log('Dashboard: Starting database query for userId:', userId);
+    logger.debug('Dashboard: Starting database query');
     
     videos = await withRetry(async () => {
       return await prisma.video.findMany({
@@ -32,9 +33,9 @@ const Dashboard = async () => {
       });
     });
     
-    console.log('Dashboard: Successfully fetched', videos.length, 'videos');
+    logger.debug('Dashboard: fetched videos', { count: videos.length });
   } catch (error: any) {
-    console.error("Database error:", error);
+    logger.error("Database error", { error: error.message });
     // Handle database error - return empty array but log error for debugging
     videos = [];
   }
