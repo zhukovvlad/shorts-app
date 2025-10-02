@@ -83,11 +83,18 @@ export const useVideoProgress = (videoId: string | null) => {
         setProgress(data);
         lastProgressRef.current = data;
         
-        // Останавливаем polling если видео готово или ошибка (но не ретрай)
-        if (data.status === 'completed' || (data.status === 'error' && !data.retryCount)) {
+        // Останавливаем polling только при успешном завершении или ФИНАЛЬНОЙ ошибке
+        // Продолжаем polling при ретраях (status='error' с retryCount > 0)
+        if (data.status === 'completed') {
+          setIsPolling(false);
+          clearInterval(interval);
+        } else if (data.status === 'error' && !data.retryCount) {
+          // Финальная ошибка без предстоящих ретраев - останавливаем
           setIsPolling(false);
           clearInterval(interval);
         }
+        // Если status='error' И есть retryCount - продолжаем polling
+        // Если status='retrying' - продолжаем polling
       } catch (error) {
         console.error('Failed to check progress:', error);
       }

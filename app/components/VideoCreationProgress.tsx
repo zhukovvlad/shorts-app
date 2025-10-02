@@ -27,6 +27,7 @@ interface VideoCreationProgressProps {
     captions: boolean;
     render: boolean;
   };
+  onTryAgain?: () => void;
   className?: string;
 }
 
@@ -78,6 +79,7 @@ export const VideoCreationProgress = ({
   retryReason,
   currentStepId,
   completedSteps,
+  onTryAgain,
   className 
 }: VideoCreationProgressProps) => {
   // Нормализуем currentStep для корректного отображения прогресса
@@ -325,7 +327,7 @@ export const VideoCreationProgress = ({
 
       {/* Footer */}
       <div className="mt-6 pt-4 border-t border-gray-700">
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-gray-400 text-center mb-3">
           {error && !retryCount ? (
             "Пожалуйста, попробуйте позже или обратитесь в поддержку"
           ) : retryCount ? (
@@ -336,6 +338,18 @@ export const VideoCreationProgress = ({
             "Общее время создания: 2-3 минуты"
           )}
         </p>
+        
+        {/* Кнопка "Попробовать снова" при финальной ошибке */}
+        {error && !retryCount && onTryAgain && (
+          <div className="flex justify-center">
+            <button
+              onClick={onTryAgain}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+            >
+              Попробовать снова
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

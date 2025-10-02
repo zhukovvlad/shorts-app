@@ -60,10 +60,11 @@ const CreateProject = ({
   useEffect(() => {
     if (progress.status === 'completed') {
       router.push("/dashboard");
-    } else if (progress.status === 'error') {
+    } else if (progress.status === 'error' && !progress.retryCount) {
+      // Показываем ошибку, но НЕ скрываем компонент прогресса
+      // Только если это финальная ошибка без предстоящих ретраев
       setError(progress.error || "An error occurred during video creation");
-      setIsLoading(false);
-      setVideoId(null);
+      // НЕ сбрасываем isLoading и videoId - пусть пользователь видит прогресс
     }
   }, [progress, router]);
 
@@ -188,6 +189,12 @@ const CreateProject = ({
             retryReason={progress.retryReason}
             currentStepId={progress.currentStepId}
             completedSteps={progress.completedSteps}
+            onTryAgain={() => {
+              // Сбрасываем состояние и возвращаемся к форме
+              setIsLoading(false);
+              setVideoId(null);
+              setError(null);
+            }}
             className="mt-8"
           />
         )}
