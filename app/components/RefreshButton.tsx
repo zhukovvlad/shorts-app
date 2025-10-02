@@ -15,7 +15,7 @@ export function RefreshButton() {
     <Button
       variant="outline"
       size="sm"
-      className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-full"
+      className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-full cursor-pointer"
       onClick={handleRefresh}
     >
       <RefreshCw className="h-4 w-4 mr-2" />
