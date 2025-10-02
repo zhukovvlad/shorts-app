@@ -86,17 +86,10 @@ export const DashboardEmptyState = ({ variant, totalVideos = 0, processingCount 
           Обычно это занимает 2-3 минуты.
         </p>
         
-        <div className="flex justify-center gap-4">
-          <Button
-            asChild
-            variant="outline"
-            className="border-gray-600 text-gray-300 hover:bg-gray-800 rounded-full"
-          >
-            <Link href="/new">
-              <Plus className="h-4 w-4 mr-2" />
-              Создать еще
-            </Link>
-          </Button>
+        <div className="text-center">
+          <p className="text-sm text-gray-500 mt-2">
+            Вы можете создать новое видео в любое время
+          </p>
         </div>
       </div>
     );
@@ -118,16 +111,9 @@ export const DashboardEmptyState = ({ variant, totalVideos = 0, processingCount 
               Обычно занимает 2-3 минуты. Мы уведомим вас, когда будет готово.
             </p>
           </div>
-          <Button
-            asChild
-            size="sm"
-            className="bg-gradient-to-r from-[#3352CC] to-[#1C2D70] hover:opacity-90 text-white rounded-full"
-          >
-            <Link href="/new">
-              <Plus className="h-4 w-4 mr-1" />
-              Создать еще
-            </Link>
-          </Button>
+          <div className="text-xs text-gray-500">
+            Готовые видео появятся здесь
+          </div>
         </div>
       </CardContent>
     </Card>

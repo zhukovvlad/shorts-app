@@ -4,7 +4,6 @@ import { prisma, withRetry } from "../lib/db";
 import { VideoCard } from "../components/videoCard";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import Link from "next/link";
 import { DashboardEmptyState } from "../components/DashboardEmptyState";
 import { RefreshButton } from "../components/RefreshButton";
@@ -69,15 +68,6 @@ const Dashboard = async () => {
         {videos.length > 0 && (
           <div className="flex gap-2">
             <RefreshButton />
-            <Button
-              asChild
-              className="bg-gradient-to-br hover:opacity-90 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer"
-            >
-              <Link href="/new">
-                <Plus className="h-4 w-4 mr-2" />
-                Создать видео
-              </Link>
-            </Button>
           </div>
         )}
       </div>
