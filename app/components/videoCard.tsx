@@ -19,6 +19,8 @@ interface VideoCardVideo {
 
 export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
+    const [imageError, setImageError] = useState(false)
+    
     const {
         isDeleting,
         handleDelete,
@@ -32,18 +34,26 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
         <div className='border bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 relative'>
             <Link href={`/videos/${video.videoId}`} className="block">
                 <div className="aspect-video bg-gray-800 relative">
-                    {video.thumbnail ? (
+                    {video.thumbnail && !imageError ? (
                         <Image
                             src={video.thumbnail}
                             alt="Video Thumbnail"
                             fill
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                             className="object-cover"
+                            priority={false}
+                            loading="lazy"
+                            onError={(e) => {
+                                setImageError(true);
+                            }}
+                            onLoad={() => {
+                                // Image loaded successfully, no action needed
+                            }}
                         />
                     ) : (
                         <div className="flex items-center justify-center h-full">
                             <span className="text-gray-400">
-                                No preview available
+                                {imageError ? 'Image failed to load' : 'No preview available'}
                             </span>
                         </div>
                     )}

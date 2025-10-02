@@ -8,6 +8,35 @@ import Link from "next/link";
 import { DashboardEmptyState } from "../components/DashboardEmptyState";
 import { RefreshButton } from "../components/RefreshButton";
 import { logger } from "@/lib/logger";
+import { unstable_cache } from 'next/cache';
+
+// Кэшированная функция для получения видео
+const getCachedVideos = unstable_cache(
+  async (userId: string) => {
+    logger.debug('Dashboard: Starting cached database query', { userId });
+    
+    const videos = await withRetry(async () => {
+      return await prisma.video.findMany({
+        where: {
+          userId: userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        // Добавляем лимит для улучшения производительности
+        take: 100,
+      });
+    });
+    
+    logger.debug('Dashboard: fetched videos', { count: videos.length });
+    return videos;
+  },
+  ['user-videos'],
+  {
+    revalidate: 30, // Кэш на 30 секунд
+    tags: ['videos'],
+  }
+);
 
 const Dashboard = async () => {
   const { userId } = await auth();
@@ -19,20 +48,7 @@ const Dashboard = async () => {
   let videos: any[] = [];
   
   try {
-    logger.debug('Dashboard: Starting database query');
-    
-    videos = await withRetry(async () => {
-      return await prisma.video.findMany({
-        where: {
-          userId: userId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-    });
-    
-    logger.debug('Dashboard: fetched videos', { count: videos.length });
+    videos = await getCachedVideos(userId);
   } catch (error: any) {
     logger.error("Database error", { error: error.message });
     // Handle database error - return empty array but log error for debugging

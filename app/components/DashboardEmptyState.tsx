@@ -2,9 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Video, Clock, CheckCircle, AlertCircle, PlayCircle } from "lucide-react";
+import { Plus, Video, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 
 interface EmptyStateProps {
   variant: 'no-videos' | 'all-processing' | 'mixed';
