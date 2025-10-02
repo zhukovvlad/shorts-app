@@ -186,6 +186,7 @@ const CreateProject = ({
             maxRetries={progress.maxRetries}
             lastError={progress.lastError}
             retryReason={progress.retryReason}
+            currentStepId={progress.currentStepId}
             className="mt-8"
           />
         )}

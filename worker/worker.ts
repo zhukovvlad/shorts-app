@@ -100,6 +100,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
             retryCount: attemptsMade,
             maxRetries: maxAttempts,
             retryReason: `Возникла временная ошибка на шаге "${stepToRetry}", пытаемся снова`,
+            currentStepId: stepToRetry, // Добавляем точную информацию о шаге
             timestamp: Date.now(),
             userId: video.userId
         }).catch(err => console.warn('Redis retry notification failed:', err));
@@ -134,10 +135,11 @@ const worker = new Worker('video-processing', async (job: Job) => {
         const failedStep = getNextStep(checkpoint);
         
         // Определяем, стоит ли делать ретрай
-        const shouldRetry = attemptsMade < maxAttempts && isRetryableError(error);
+        const attemptNumber = attemptsMade + 1;
+        const shouldRetry = attemptNumber < maxAttempts && isRetryableError(error);
         
         if (shouldRetry) {
-            console.log(`🔄 Will retry from step: ${failedStep} (attempt ${attemptsMade + 1}/${maxAttempts})`);
+            console.log(`🔄 Will retry from step: ${failedStep} (attempt ${attemptNumber}/${maxAttempts})`);
         } else {
             console.log(`🛑 Final failure at step: ${failedStep} (no more retries)`);
         }
@@ -158,9 +160,9 @@ const worker = new Worker('video-processing', async (job: Job) => {
             await setVideoProgress(videoId, {
                 status: shouldRetry ? 'error' : 'error',
                 error: shouldRetry ? 
-                    `${userFriendlyError} на шаге "${failedStep}". Попытка ${attemptsMade + 1} из ${maxAttempts}` : 
+                    `${userFriendlyError} на шаге "${failedStep}". Попытка ${attemptNumber} из ${maxAttempts}` : 
                     `${userFriendlyError} на шаге "${failedStep}"`,
-                retryCount: shouldRetry ? attemptsMade + 1 : undefined,
+                retryCount: shouldRetry ? attemptNumber : undefined,
                 maxRetries: shouldRetry ? maxAttempts : undefined,
                 lastError: errorMessage,
                 timestamp: Date.now(),

@@ -72,6 +72,7 @@ export interface VideoProgress {
   maxRetries?: number;
   lastError?: string;
   retryReason?: string;
+  currentStepId?: string; // Точный ID текущего шага для корректного отображения UI
   timestamp: number;
   userId: string;
 }

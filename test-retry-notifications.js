@@ -46,11 +46,12 @@ async function testRetryNotifications() {
         console.log('\n3️⃣ Симулируем статус ретрая...');
         await redis.setex(`video_progress:${testVideoId}`, 3600, JSON.stringify({
             status: 'retrying',
-            step: 'Повторная попытка 1/3...',
+            step: 'Повторная попытка 1/3 (шаг: captions)...',
             retryCount: 1,
             maxRetries: 3,
-            retryReason: 'Возникла временная ошибка, пытаемся снова',
+            retryReason: 'Возникла временная ошибка на шаге "captions", пытаемся снова',
             lastError: 'TypeError: fetch failed - Connect Timeout Error',
+            currentStepId: 'captions', // Точно указываем какой шаг ретраится
             timestamp: Date.now(),
             userId: testUserId
         }));
