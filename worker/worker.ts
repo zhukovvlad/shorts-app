@@ -31,25 +31,17 @@ const worker = new Worker('video-processing', async (job: Job) => {
     const { videoId } = job.data;
     console.log(`Processing job for videoId: ${videoId}`);
 
+    // Получаем userId из базы данных
+    const video = await prisma.video.findUnique({
+        where: { videoId },
+        select: { userId: true }
+    });
+
+    if (!video) {
+        throw new Error(`Video with ID ${videoId} not found`);
+    }
+
     try {
-        // Получаем userId из базы данных
-        const video = await prisma.video.findUnique({
-            where: { videoId },
-            select: { userId: true }
-        });
-
-        if (!video) {
-            throw new Error(`Video with ID ${videoId} not found`);
-        }
-
-        // Устанавливаем начальный прогресс
-        await setVideoProgress(videoId, {
-            status: 'script',
-            step: 'Генерация сценария...',
-            timestamp: Date.now(),
-            userId: video.userId
-        }).catch(err => console.warn('Redis progress update failed:', err));
-
         await processVideo(videoId, video.userId);
         
         // Устанавливаем завершенный статус
@@ -70,12 +62,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
     } catch (error) {
         console.error(`Error processing videoId ${videoId}:`, error);
 
-        // Получаем userId для установки ошибки в прогрессе
-        const video = await prisma.video.findUnique({
-            where: { videoId },
-            select: { userId: true }
-        });
-
+        // Используем уже полученный video из области видимости выше
         if (video) {
             await setVideoProgress(videoId, {
                 status: 'error',

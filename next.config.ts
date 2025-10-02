@@ -25,7 +25,6 @@ const nextConfig: NextConfig = {
     // Оптимизация размера bundle'а
     config.optimization = {
       ...config.optimization,
-      sideEffects: false,
     };
     
     return config;

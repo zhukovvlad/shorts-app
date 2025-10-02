@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 interface OptimizedImageProps {
   src: string
@@ -29,6 +29,12 @@ export const OptimizedImage = ({
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
 
+  useEffect(() => {
+    setImageSrc(src)
+    setIsLoading(true)
+    setHasError(false)
+  }, [src])
+
   const handleLoad = () => {
     setIsLoading(false)
   }
@@ -44,7 +50,12 @@ export const OptimizedImage = ({
 
   if (hasError && !fallbackSrc) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-800">
+      <div 
+        className="flex items-center justify-center h-full bg-gray-800"
+        role="status"
+        aria-live="polite"
+        aria-label="Image unavailable"
+      >
         <span className="text-gray-400 text-sm">
           Image unavailable
         </span>
@@ -55,7 +66,13 @@ export const OptimizedImage = ({
   return (
     <div className="relative">
       {isLoading && (
-        <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+        <div 
+          className="absolute inset-0 bg-gray-800 animate-pulse"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          aria-label="Loading image"
+        />
       )}
       <Image
         src={imageSrc}
