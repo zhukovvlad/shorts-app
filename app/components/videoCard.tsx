@@ -17,7 +17,12 @@ interface VideoCardVideo {
     createdAt: string | Date;
 }
 
-export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
+interface VideoCardProps {
+    video: VideoCardVideo;
+    priority?: boolean;
+}
+
+export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [imageError, setImageError] = useState(false)
 
@@ -45,8 +50,8 @@ export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
                             fill
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                             className="object-cover"
-                            priority={false}
-                            loading="lazy"
+                            priority={priority}
+                            loading={priority ? undefined : "lazy"}
                             onError={(e) => {
                                 setImageError(true);
                             }}
