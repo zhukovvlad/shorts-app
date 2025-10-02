@@ -230,7 +230,7 @@ export const PromptExamples = ({ onSelectPrompt, className }: PromptExamplesProp
                     size="sm"
                     variant="ghost"
                     onClick={() => handleCopyPrompt(example.prompt)}
-                    className="h-8 w-8 p-0 hover:bg-gray-700"
+                    className="h-8 w-8 p-0 hover:bg-gray-700 cursor-pointer"
                     aria-label="Copy prompt"
                     title="Copy prompt to clipboard"
                   >
@@ -240,7 +240,7 @@ export const PromptExamples = ({ onSelectPrompt, className }: PromptExamplesProp
                     <Button
                       size="sm"
                       onClick={() => handleUsePrompt(example.prompt)}
-                      className="bg-gradient-to-r from-[#3352CC] to-[#1C2D70] hover:opacity-90 text-white"
+                      className="bg-gradient-to-r from-[#3352CC] to-[#1C2D70] hover:opacity-90 text-white cursor-pointer"
                     >
                       <Play className="h-4 w-4 mr-1" />
                       Использовать

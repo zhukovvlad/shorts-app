@@ -1,6 +1,35 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Экспериментальные настройки для производительности
+  experimental: {
+    // Улучшенная производительность
+    optimizeCss: true,
+    scrollRestoration: true,
+  },
+  // Webpack bundle optimization
+  bundlePagesRouterDependencies: false,
+  // Оптимизация webpack
+  webpack: (config, { isServer }) => {
+    // Исключаем большие зависимости из клиентского bundle'а
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+    }
+    
+    // Оптимизация размера bundle'а
+    config.optimization = {
+      ...config.optimization,
+      sideEffects: false,
+    };
+    
+    return config;
+  },
   // Configuration for Turbopack (experimental)
   turbopack: {
     rules: {
@@ -44,6 +73,16 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+    // Оптимизированные настройки для S3 изображений
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    // Убираем WebP конвертацию - оставляем исходные форматы
+    // formats: ['image/webp'],
+    minimumCacheTTL: 3600, // Уменьшаем до 1 часа для лучшей производительности
+    // Оставляем оптимизацию, но с более мягкими настройками
+    loader: 'default',
   },
 };
 

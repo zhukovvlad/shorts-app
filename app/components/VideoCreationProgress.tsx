@@ -13,6 +13,7 @@ interface ProgressStep {
 
 interface VideoCreationProgressProps {
   currentStep: string;
+  step?: string;
   error?: string;
   className?: string;
 }
@@ -57,6 +58,7 @@ const defaultSteps: ProgressStep[] = [
 
 export const VideoCreationProgress = ({ 
   currentStep, 
+  step,
   error, 
   className 
 }: VideoCreationProgressProps) => {
@@ -92,7 +94,7 @@ export const VideoCreationProgress = ({
           <p className="text-red-400 text-sm">Произошла ошибка: {error}</p>
         ) : (
           <p className="text-gray-300 text-sm">
-            {currentStepData ? `${currentStepData.name}...` : 'Инициализация...'}
+            {step || (currentStepData ? `${currentStepData.name}...` : 'Инициализация...')}
           </p>
         )}
       </div>

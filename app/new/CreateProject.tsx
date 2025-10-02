@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Cover } from "@/components/ui/cover";
 import { ShineBorder } from "@/components/magicui/shine-border";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
@@ -21,6 +21,7 @@ import {
 import { useRouter } from "next/navigation";
 import { createVideo } from "../actions/create";
 import { ChevronDown, ChevronUp, Lightbulb } from "lucide-react";
+import { useVideoProgress } from "../hooks/useVideoProgress";
 
 const CreateProject = ({
   user,
@@ -47,12 +48,24 @@ const CreateProject = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExamples, setShowExamples] = useState(false);
-  const [creationStep, setCreationStep] = useState<string>("");
+  const [videoId, setVideoId] = useState<string | null>(null);
+  const { progress } = useVideoProgress(videoId);
 
   const handleSelectPrompt = (selectedPrompt: string) => {
     setPrompt(selectedPrompt);
     setShowExamples(false);
   };
+
+  // Обрабатываем изменения прогресса
+  useEffect(() => {
+    if (progress.status === 'completed') {
+      router.push("/dashboard");
+    } else if (progress.status === 'error') {
+      setError(progress.error || "An error occurred during video creation");
+      setIsLoading(false);
+      setVideoId(null);
+    }
+  }, [progress, router]);
 
   return (
     <div className="w-screen min-h-screen flex flex-col">
@@ -97,14 +110,14 @@ const CreateProject = ({
                   if (isLoading) return; // Prevent multiple submissions
 
                   setIsLoading(true);
-                  setCreationStep("script");
                   
                   try {
                     const result = await createVideo(trimmedPrompt);
                     if (result?.videoId) {
-                      router.push("/dashboard");
+                      setVideoId(result.videoId); // Устанавливаем videoId для начала polling
                     } else {
                       setError("Failed to create video. Please try again.");
+                      setIsLoading(false);
                     }
                   } catch (err: any) {
                     logger.error("Video creation error", { error: err instanceof Error ? err.message : String(err) });
@@ -114,9 +127,7 @@ const CreateProject = ({
                     } else {
                       setError("Failed to create video. Please try again.");
                     }
-                  } finally {
                     setIsLoading(false);
-                    setCreationStep("");
                   }
                 }}
               />
@@ -168,8 +179,9 @@ const CreateProject = ({
         ) : (
           /* Progress Section */
           <VideoCreationProgress 
-            currentStep={creationStep}
-            error={error || undefined}
+            currentStep={progress.status}
+            step={progress.step}
+            error={progress.status === 'error' ? progress.error : undefined}
             className="mt-8"
           />
         )}
