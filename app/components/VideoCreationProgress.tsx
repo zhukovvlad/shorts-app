@@ -20,6 +20,13 @@ interface VideoCreationProgressProps {
   lastError?: string;
   retryReason?: string;
   currentStepId?: string;
+  completedSteps?: {
+    script: boolean;
+    images: boolean;
+    audio: boolean;
+    captions: boolean;
+    render: boolean;
+  };
   className?: string;
 }
 
@@ -70,6 +77,7 @@ export const VideoCreationProgress = ({
   lastError,
   retryReason,
   currentStepId,
+  completedSteps,
   className 
 }: VideoCreationProgressProps) => {
   // Нормализуем currentStep для корректного отображения прогресса
@@ -116,8 +124,18 @@ export const VideoCreationProgress = ({
   const isCompleted = currentStep === 'completed';
   const isErrorWithRetry = currentStep === 'error' && retryCount;
 
-  // Обновляем статусы шагов на основе нормализованного активного шага
-  const steps = defaultSteps.map(step => {
+  // Логируем для отладки (можно отключить в production)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎨 VideoCreationProgress:', {
+      currentStep,
+      activeStepId,
+      hasCompletedSteps: !!completedSteps,
+      completedCount: completedSteps ? Object.values(completedSteps).filter(Boolean).length : 0
+    });
+  }
+
+  // Обновляем статусы шагов на основе реальных данных о завершенности
+  const steps = defaultSteps.map((step, index) => {
     const stepIndex = defaultSteps.findIndex(s => s.id === step.id);
     const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
     
@@ -130,14 +148,36 @@ export const VideoCreationProgress = ({
     } else if ((isRetrying || isErrorWithRetry) && step.id === activeStepId) {
       // Текущий шаг при ретрае или ошибке с предстоящим ретраем
       return { ...step, status: 'current' as const };
-    } else if (stepIndex < activeIndex) {
-      return { ...step, status: 'completed' as const };
     } else if (step.id === activeStepId) {
+      // Текущий активный шаг
       return { ...step, status: 'current' as const };
+    } else if (completedSteps) {
+      // Если есть информация о checkpoint, используем её
+      if (completedSteps[step.id as keyof typeof completedSteps]) {
+        return { ...step, status: 'completed' as const };
+      } else if (stepIndex < activeIndex) {
+        // ВАЖНО: Если мы на более позднем шаге, но checkpoint не обновлен,
+        // логически предыдущие шаги должны быть завершены
+        return { ...step, status: 'completed' as const };
+      } else {
+        // Шаг не завершен согласно checkpoint и находится после текущего
+        return { ...step, status: 'pending' as const };
+      }
+    } else if (stepIndex < activeIndex) {
+      // Fallback ТОЛЬКО если completedSteps отсутствует:
+      // шаги до текущего считаем завершенными
+      return { ...step, status: 'completed' as const };
     } else {
+      // Будущие шаги
       return { ...step, status: 'pending' as const };
     }
   });
+
+  // Логируем финальное состояние (только в development)
+  if (process.env.NODE_ENV === 'development') {
+    const completedCount = steps.filter(step => step.status === 'completed').length;
+    console.log(`📊 Steps: ${completedCount} completed, active: ${activeStepId}`);
+  }
 
   // Для прогресс-бара учитываем специальные состояния
   let completedStepsCount = steps.filter(step => step.status === 'completed').length;
@@ -148,6 +188,14 @@ export const VideoCreationProgress = ({
     // При ретрае добавляем частичный прогресс для текущего шага
     const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
     completedStepsCount = activeIndex; // количество завершенных шагов до текущего
+  } else {
+    // Для обычного текущего шага добавляем частичный прогресс (50% от шага)
+    const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
+    const currentStepStatus = steps.find(s => s.id === activeStepId)?.status;
+    if (currentStepStatus === 'current' && activeIndex >= 0) {
+      // Добавляем 0.5 к завершенным шагам для показа частичного прогресса текущего шага
+      completedStepsCount = completedStepsCount + 0.5;
+    }
   }
 
   const currentStepData = steps.find(step => step.id === activeStepId);

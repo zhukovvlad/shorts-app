@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { getVideoProgress } from '@/lib/redis';
+import { getVideoProgress, getVideoCheckpoint } from '@/lib/redis';
 import { prisma } from '@/app/lib/db';
 
 export async function GET(
@@ -17,6 +17,7 @@ export async function GET(
     
     // Сначала проверяем Redis
     const progress = await getVideoProgress(videoId);
+    const checkpoint = await getVideoCheckpoint(videoId);
     
     if (progress) {
       // Проверяем, что пользователь имеет доступ к этому видео
@@ -33,6 +34,13 @@ export async function GET(
         lastError: progress.lastError,
         retryReason: progress.retryReason,
         currentStepId: progress.currentStepId,
+        completedSteps: checkpoint?.completedSteps || {
+          script: false,
+          images: false,
+          audio: false,
+          captions: false,
+          render: false
+        },
         videoId
       });
     }
@@ -56,10 +64,22 @@ export async function GET(
     if (video.failed) {
       status = 'error';
     } else if (video.processing) {
-      status = 'render'; // Если еще обрабатывается, но нет в Redis
+      // Если еще обрабатывается, но нет в Redis, значит процесс только начался
+      // Лучше показать начальный статус, чем render
+      status = 'script'; // Начальный шаг вместо render
     }
 
-    return NextResponse.json({ status, videoId });
+    return NextResponse.json({ 
+      status, 
+      completedSteps: {
+        script: false,
+        images: false,
+        audio: false,
+        captions: false,
+        render: false
+      },
+      videoId 
+    });
 
   } catch (error) {
     console.error('Progress check error:', error);

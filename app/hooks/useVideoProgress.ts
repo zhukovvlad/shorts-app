@@ -15,6 +15,13 @@ interface VideoProgressResponse {
   lastError?: string;
   retryReason?: string;
   currentStepId?: string;
+  completedSteps?: {
+    script: boolean;
+    images: boolean;
+    audio: boolean;
+    captions: boolean;
+    render: boolean;
+  };
 }
 
 export const useVideoProgress = (videoId: string | null) => {
@@ -31,6 +38,12 @@ export const useVideoProgress = (videoId: string | null) => {
       try {
         const response = await fetch(`/api/video/${videoId}/progress`);
         const data: VideoProgressResponse = await response.json();
+        
+        // Логируем данные для отладки (только в development)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Progress:', data.status, 
+            data.completedSteps ? `(${Object.values(data.completedSteps).filter(Boolean).length}/5 completed)` : '(no checkpoint)');
+        }
         
         // Проверяем изменения для показа уведомлений
         const lastProgress = lastProgressRef.current;
