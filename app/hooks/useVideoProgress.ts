@@ -14,6 +14,7 @@ interface VideoProgressResponse {
   maxRetries?: number;
   lastError?: string;
   retryReason?: string;
+  currentStepId?: string;
 }
 
 export const useVideoProgress = (videoId: string | null) => {

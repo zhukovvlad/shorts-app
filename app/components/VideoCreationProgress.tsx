@@ -19,6 +19,7 @@ interface VideoCreationProgressProps {
   maxRetries?: number;
   lastError?: string;
   retryReason?: string;
+  currentStepId?: string;
   className?: string;
 }
 
@@ -68,31 +69,90 @@ export const VideoCreationProgress = ({
   maxRetries,
   lastError,
   retryReason,
+  currentStepId,
   className 
 }: VideoCreationProgressProps) => {
-  // Обновляем статусы шагов на основе текущего шага
+  // Нормализуем currentStep для корректного отображения прогресса
+  const normalizeCurrentStep = (status: string, currentStepId?: string, retryCount?: number): string => {
+    // Если у нас есть точный stepId, используем его
+    if (currentStepId && defaultSteps.some(s => s.id === currentStepId)) {
+      return currentStepId;
+    }
+
+    if (status === 'retrying') {
+      // При ретрае определяем активный шаг из step описания или используем последний
+      // Ищем название шага в step строке
+      const stepMatch = step?.match(/(script|images|audio|captions|render)/i);
+      if (stepMatch) {
+        return stepMatch[1].toLowerCase();
+      }
+      // Fallback: если ретрай, то скорее всего это captions (частая ошибка)
+      return 'captions';
+    }
+    
+    if (status === 'completed') {
+      return 'render'; // показываем как завершенный render
+    }
+    
+    if (status === 'error' && retryCount) {
+      // При ошибке с ретраем пытаемся определить проблемный шаг
+      const stepMatch = step?.match(/(script|images|audio|captions|render)/i);
+      if (stepMatch) {
+        return stepMatch[1].toLowerCase();
+      }
+    }
+    
+    // Проверяем, что currentStep является валидным шагом
+    if (defaultSteps.some(s => s.id === status)) {
+      return status;
+    }
+    
+    // Fallback для неизвестных статусов
+    return 'script';
+  };
+
+  const activeStepId = normalizeCurrentStep(currentStep, currentStepId, retryCount);
+  const isRetrying = currentStep === 'retrying';
+  const isCompleted = currentStep === 'completed';
+  const isErrorWithRetry = currentStep === 'error' && retryCount;
+
+  // Обновляем статусы шагов на основе нормализованного активного шага
   const steps = defaultSteps.map(step => {
     const stepIndex = defaultSteps.findIndex(s => s.id === step.id);
-    const currentIndex = defaultSteps.findIndex(s => s.id === currentStep);
+    const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
     
-    if (error && step.id === currentStep && !retryCount) {
-      return { ...step, status: 'error' as const };
-    } else if (currentStep === 'retrying' && stepIndex === currentIndex - 1) {
-      // Если происходит ретрай, показываем предыдущий шаг как "текущий" с ретраем
-      return { ...step, status: 'current' as const };
-    } else if (stepIndex < currentIndex) {
+    if (isCompleted) {
+      // Если всё завершено, все шаги completed
       return { ...step, status: 'completed' as const };
-    } else if (step.id === currentStep) {
+    } else if (error && step.id === activeStepId && !retryCount) {
+      // Финальная ошибка без ретрая
+      return { ...step, status: 'error' as const };
+    } else if ((isRetrying || isErrorWithRetry) && step.id === activeStepId) {
+      // Текущий шаг при ретрае или ошибке с предстоящим ретраем
+      return { ...step, status: 'current' as const };
+    } else if (stepIndex < activeIndex) {
+      return { ...step, status: 'completed' as const };
+    } else if (step.id === activeStepId) {
       return { ...step, status: 'current' as const };
     } else {
       return { ...step, status: 'pending' as const };
     }
   });
 
-  const currentStepData = steps.find(step => step.id === currentStep);
-  const completedSteps = steps.filter(step => step.status === 'completed').length;
+  // Для прогресс-бара учитываем специальные состояния
+  let completedStepsCount = steps.filter(step => step.status === 'completed').length;
+  
+  if (isCompleted) {
+    completedStepsCount = steps.length; // 100% при завершении
+  } else if (isRetrying || isErrorWithRetry) {
+    // При ретрае добавляем частичный прогресс для текущего шага
+    const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
+    completedStepsCount = activeIndex; // количество завершенных шагов до текущего
+  }
+
+  const currentStepData = steps.find(step => step.id === activeStepId);
   const totalSteps = steps.length;
-  const progressPercentage = (completedSteps / totalSteps) * 100;
+  const progressPercentage = Math.round((completedStepsCount / totalSteps) * 100);
 
   return (
     <div className={cn("w-full max-w-2xl mx-auto p-6 bg-gray-800/50 rounded-xl border border-gray-700", className)}>
@@ -106,7 +166,7 @@ export const VideoCreationProgress = ({
         ) : retryCount ? (
           <div className="space-y-1">
             <p className="text-yellow-400 text-sm font-medium">
-              Повторная попытка {retryCount}/{maxRetries || 3}
+              Повторная попытка {retryCount}/{maxRetries ?? 3}
             </p>
             <p className="text-gray-300 text-xs">
               {retryReason || 'Возникла временная проблема, пытаемся снова...'}
@@ -128,7 +188,7 @@ export const VideoCreationProgress = ({
       <div className="mb-8">
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm text-gray-400">Прогресс</span>
-          <span className="text-sm text-gray-400">{Math.round(progressPercentage)}%</span>
+          <span className="text-sm text-gray-400">{progressPercentage}%</span>
         </div>
         <div className="w-full bg-gray-700 rounded-full h-2">
           <div 
@@ -140,7 +200,7 @@ export const VideoCreationProgress = ({
 
       {/* Steps */}
       <div className="space-y-4">
-        {steps.map((step, index) => {
+        {steps.map((step) => {
           const isRetrying = retryCount && step.status === 'current';
           const Icon = step.status === 'completed' 
             ? CheckCircle 
@@ -196,7 +256,7 @@ export const VideoCreationProgress = ({
                     {step.name}
                     {isRetrying && (
                       <span className="ml-2 text-xs text-yellow-300">
-                        (повтор {retryCount}/{maxRetries})
+                        (повтор {retryCount}/{maxRetries ?? 3})
                       </span>
                     )}
                   </h4>
