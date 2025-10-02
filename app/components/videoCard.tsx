@@ -7,7 +7,7 @@ import { Copy, Download, MoreVertical, Trash2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useVideoActions } from "../hooks/useVideoActions"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 interface VideoCardVideo {
     videoId: string;
@@ -20,6 +20,10 @@ interface VideoCardVideo {
 export const VideoCard = ({ video }: { video: VideoCardVideo }) => {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [imageError, setImageError] = useState(false)
+
+    useEffect(() => {
+        setImageError(false)
+    }, [video.thumbnail])
     
     const {
         isDeleting,

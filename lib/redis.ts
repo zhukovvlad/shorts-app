@@ -1,4 +1,5 @@
 import { Redis } from 'ioredis';
+import { logger } from '@/lib/logger';
 
 let redisInstance: Redis | null = null;
 
@@ -6,15 +7,32 @@ function getRedisInstance(): Redis {
   if (!redisInstance) {
     // Проверяем наличие необходимых переменных окружения
     const redisHost = process.env.UPSTASH_REDIS_HOST;
-    const redisPort = process.env.UPSTASH_REDIS_PORT ? parseInt(process.env.UPSTASH_REDIS_PORT) : 6379;
     const redisToken = process.env.UPSTASH_REDIS_TOKEN;
+    
+    // Валидируем порт
+    let redisPort = 6379; // Значение по умолчанию
+    if (process.env.UPSTASH_REDIS_PORT) {
+      const parsedPort = parseInt(process.env.UPSTASH_REDIS_PORT, 10);
+      if (!isNaN(parsedPort) && parsedPort > 0 && parsedPort <= 65535) {
+        redisPort = parsedPort;
+      } else {
+        logger.warn('Invalid UPSTASH_REDIS_PORT, falling back to 6379', { 
+          providedPort: process.env.UPSTASH_REDIS_PORT 
+        });
+      }
+    }
 
-    console.log('Creating Redis instance with config:');
-    console.log('Host:', redisHost);
-    console.log('Port:', redisPort);
-    console.log('Token:', redisToken ? '[SET]' : '[NOT SET]');
+    logger.debug('Creating Redis instance with config', {
+      host: redisHost,
+      port: redisPort,
+      token: redisToken ? '[SET]' : '[NOT SET]'
+    });
 
     if (!redisHost || !redisToken) {
+      logger.error('Missing required Redis configuration', {
+        host: redisHost ? '[SET]' : '[NOT SET]',
+        token: redisToken ? '[SET]' : '[NOT SET]'
+      });
       throw new Error('UPSTASH_REDIS_HOST and UPSTASH_REDIS_TOKEN must be set for Redis functionality');
     }
 
@@ -22,7 +40,7 @@ function getRedisInstance(): Redis {
       host: redisHost,
       port: redisPort,
       password: redisToken,
-      tls: {},
+      tls: { rejectUnauthorized: true },
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,
@@ -30,11 +48,11 @@ function getRedisInstance(): Redis {
 
     // Обработка ошибок подключения
     redisInstance.on('error', (err) => {
-      console.error('Redis connection error:', err);
+      logger.error('Redis connection error', { error: err.message });
     });
 
     redisInstance.on('connect', () => {
-      console.log('Redis connected successfully');
+      logger.info('Redis connected successfully');
     });
   }
   

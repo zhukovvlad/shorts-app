@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { VideoProgress } from '@/lib/redis';
 
-interface VideoProgress {
+// Тип для ответа API, который включает videoId но не содержит timestamp и userId
+interface VideoProgressResponse {
   status: 'script' | 'images' | 'audio' | 'captions' | 'render' | 'completed' | 'error';
   step?: string;
   videoId?: string;
@@ -10,7 +12,7 @@ interface VideoProgress {
 }
 
 export const useVideoProgress = (videoId: string | null) => {
-  const [progress, setProgress] = useState<VideoProgress>({ status: 'script' });
+  const [progress, setProgress] = useState<VideoProgressResponse>({ status: 'script' });
   const [isPolling, setIsPolling] = useState(false);
 
   useEffect(() => {
@@ -21,7 +23,7 @@ export const useVideoProgress = (videoId: string | null) => {
     const checkProgress = async () => {
       try {
         const response = await fetch(`/api/video/${videoId}/progress`);
-        const data = await response.json();
+        const data: VideoProgressResponse = await response.json();
         
         setProgress(data);
         
