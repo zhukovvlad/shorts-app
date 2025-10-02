@@ -187,6 +187,7 @@ const CreateProject = ({
             lastError={progress.lastError}
             retryReason={progress.retryReason}
             currentStepId={progress.currentStepId}
+            completedSteps={progress.completedSteps}
             className="mt-8"
           />
         )}
