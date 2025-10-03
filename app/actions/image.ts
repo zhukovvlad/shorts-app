@@ -22,6 +22,22 @@ const s3Client = new S3Client({
 
 const bucketName = process.env.AWS_S3_BUCKET_NAME!;
 
+/**
+ * Определяет расширение файла на основе Content-Type
+ */
+const getFileExtensionFromContentType = (contentType: string): string => {
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) {
+    return 'jpg';
+  } else if (contentType.includes('png')) {
+    return 'png';
+  } else if (contentType.includes('webp')) {
+    return 'webp';
+  } else if (contentType.includes('gif')) {
+    return 'gif';
+  }
+  return 'png'; // По умолчанию
+};
+
 const processImage = async (img: string, modelId?: string) => {
   try {
     // Получаем конфигурацию модели
@@ -45,53 +61,120 @@ const processImage = async (img: string, modelId?: string) => {
 
     console.log(`Output type from ${model.name}:`, typeof output, Array.isArray(output) ? '(array)' : '');
 
-    // Разные модели возвращают результат в разных форматах
-    let imageUrl: string;
+    // Функция для извлечения URL из различных форматов
+    const extractUrlFromValue = (value: any): string | null => {
+      if (typeof value === 'string') {
+        return value;
+      }
+      if (value && typeof value === 'object') {
+        // Проверяем метод url()
+        if (typeof value.url === 'function') {
+          const urlResult = value.url();
+          // url() может вернуть строку или объект с href
+          if (typeof urlResult === 'string') {
+            return urlResult;
+          }
+          if (urlResult && typeof urlResult === 'object' && urlResult.href) {
+            return urlResult.href;
+          }
+        }
+        // Проверяем свойство href
+        if (value.href && typeof value.href === 'string') {
+          return value.href;
+        }
+        // Проверяем свойство output
+        if (value.output) {
+          // output может быть строкой, массивом или объектом
+          if (typeof value.output === 'string') {
+            return value.output;
+          }
+          if (Array.isArray(value.output) && value.output.length > 0) {
+            return extractUrlFromValue(value.output[0]);
+          }
+          if (typeof value.output === 'object') {
+            return extractUrlFromValue(value.output);
+          }
+        }
+      }
+      return null;
+    };
+
+    // Парсим результат от Replicate с защитой от различных форматов
+    let imageUrl: string | null = null;
     
     if (Array.isArray(output)) {
-      // FLUX Schnell и Dev модели возвращают массив URL
-      imageUrl = output[0];
-      console.log(`Model returned array format, using first URL: ${imageUrl}`);
+      // Проверяем на пустой массив
+      if (output.length === 0) {
+        console.error(`Model ${model.name} returned empty array`);
+        throw new Error(`Model ${model.name} returned empty array - no images generated`);
+      }
+      
+      // Извлекаем URL из первого элемента массива
+      imageUrl = extractUrlFromValue(output[0]);
+      if (imageUrl) {
+        console.log(`Model returned array format, extracted URL: ${imageUrl}`);
+      }
     } else if (typeof output === 'string') {
       // Некоторые модели возвращают строку напрямую
       imageUrl = output;
       console.log(`Model returned string format: ${imageUrl}`);
     } else if (output && typeof output === 'object') {
-      // Ideogram и FLUX Pro возвращают объект
-      const replicateOutput = output as any;
-      
-      // Проверяем, есть ли метод url()
-      if (typeof replicateOutput.url === 'function') {
-        const image = replicateOutput.url();
-        imageUrl = image.href;
-        console.log(`Model returned object format with url() method: ${imageUrl}`);
-      } else if (replicateOutput.output) {
-        // Некоторые модели возвращают {output: "url"}
-        imageUrl = replicateOutput.output;
-        console.log(`Model returned object with output property: ${imageUrl}`);
-      } else {
-        console.error(`Unexpected object format from model ${model.name}:`, output);
-        throw new Error(`Unsupported object format from model ${model.name}`);
+      // Извлекаем URL из объекта
+      imageUrl = extractUrlFromValue(output);
+      if (imageUrl) {
+        console.log(`Model returned object format, extracted URL: ${imageUrl}`);
       }
-    } else {
-      console.error(`Unexpected output format from model ${model.name}:`, output);
-      throw new Error(`Unsupported output format from model ${model.name}`);
     }
 
+    // Финальная проверка - удалось ли извлечь URL
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      console.error(`Failed to extract valid URL from model ${model.name} output:`, JSON.stringify(output, null, 2));
+      throw new Error(`Could not extract valid image URL from model ${model.name}. Output type: ${typeof output}, isArray: ${Array.isArray(output)}`);
+    }
+
+    // Дополнительная проверка что это похоже на URL
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      console.error(`Extracted value is not a valid URL from model ${model.name}:`, imageUrl);
+      throw new Error(`Invalid URL format from model ${model.name}: ${imageUrl}`);
+    }
+
+    // Загружаем изображение и определяем его тип
     const response = await fetch(imageUrl);
+    
+    // Проверяем успешность запроса
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.error(`Failed to fetch image from ${imageUrl}: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+
+    // Читаем изображение в буфер
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const fileName = `${randomUUID()}.png`;
+
+    // Определяем Content-Type из заголовков ответа
+    const contentType = response.headers.get('content-type') || 'image/png';
+    console.log(`Image content-type: ${contentType}`);
+
+    // Определяем расширение файла на основе Content-Type
+    const extension = getFileExtensionFromContentType(contentType);
+    if (extension === 'png' && contentType !== 'image/png') {
+      console.warn(`Unknown content-type: ${contentType}, defaulting to png`);
+    }
+
+    // Генерируем имя файла с правильным расширением
+    const fileName = `${randomUUID()}.${extension}`;
 
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: fileName,
       Body: buffer,
-      ContentType: "image/png",
+      ContentType: contentType,
     });
 
     await s3Client.send(command);
     const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    console.log(`Successfully uploaded image to S3: ${fileName} (${contentType})`);
     return s3Url;
   } catch (error) {
     console.log("Error processing image from replicate:", error);
