@@ -16,6 +16,25 @@ export interface ImageModel {
   quality: 'standard' | 'high' | 'ultra';
 }
 
+/**
+ * Дефолтная модель на случай если IMAGE_MODELS пуст
+ * Используется как fallback для гарантии работоспособности системы
+ */
+const FALLBACK_DEFAULT_MODEL: ImageModel = {
+  id: 'ideogram-v3-turbo',
+  name: 'Ideogram V3 Turbo',
+  description: 'Быстрая генерация реалистичных изображений',
+  replicateModel: 'ideogram-ai/ideogram-v3-turbo',
+  defaultParams: {
+    resolution: 'None',
+    style_type: 'Realistic',
+    aspect_ratio: '9:16',
+    magic_prompt_option: 'On',
+  },
+  speed: 'fast',
+  quality: 'high',
+};
+
 export const IMAGE_MODELS: ImageModel[] = [
   {
     id: 'ideogram-v3-turbo',
@@ -93,6 +112,19 @@ export const getModelById = (modelId: string): ImageModel | undefined => {
   return IMAGE_MODELS.find((model) => model.id === modelId);
 };
 
+/**
+ * Возвращает модель по умолчанию для генерации изображений
+ * Гарантированно возвращает валидную ImageModel
+ * 
+ * @returns ImageModel - модель по умолчанию (Ideogram V3 Turbo)
+ * @throws {Error} Только если IMAGE_MODELS пуст и fallback недоступен (критическая ошибка конфигурации)
+ */
 export const getDefaultModel = (): ImageModel => {
+  // Защита от пустого массива моделей
+  if (IMAGE_MODELS.length === 0) {
+    console.warn('IMAGE_MODELS is empty, using fallback default model');
+    return FALLBACK_DEFAULT_MODEL;
+  }
+  
   return IMAGE_MODELS[0]; // Ideogram V3 Turbo по умолчанию
 };
