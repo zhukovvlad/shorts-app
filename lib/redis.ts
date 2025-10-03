@@ -242,3 +242,31 @@ export const testRedisConnection = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// Префикс для метаданных видео
+const VIDEO_METADATA_PREFIX = 'video:metadata:';
+
+// Функция для сохранения метаданных видео
+export const setVideoMetadata = async (videoId: string, metadata: Record<string, any>): Promise<void> => {
+  try {
+    const redis = getRedisInstance();
+    const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
+    await redis.set(key, JSON.stringify(metadata), 'EX', 86400); // TTL 24 часа
+  } catch (error) {
+    console.error('Failed to set video metadata in Redis:', error);
+    throw error;
+  }
+};
+
+// Функция для получения метаданных видео
+export const getVideoMetadata = async (videoId: string): Promise<Record<string, any> | null> => {
+  try {
+    const redis = getRedisInstance();
+    const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
+    const data = await redis.get(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.error('Failed to get video metadata from Redis:', error);
+    return null;
+  }
+};

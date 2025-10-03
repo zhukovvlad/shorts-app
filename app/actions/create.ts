@@ -68,6 +68,7 @@ const validatePrompt = (prompt: string): string => {
  * 5. Возвращает информацию о созданном видео
  * 
  * @param prompt - Пользовательский промпт для генерации видео (10-500 символов)
+ * @param imageModel - ID модели для генерации изображений (опционально)
  * @returns Promise объекта с информацией о созданном видео
  * 
  * @throws {Error} "User not authenticated" - Если пользователь не авторизован
@@ -78,7 +79,7 @@ const validatePrompt = (prompt: string): string => {
  * 
  * @example
  * ```typescript
- * const result = await createVideo("Create a video about space exploration")
+ * const result = await createVideo("Create a video about space exploration", "flux-pro")
  * // Возвращает:
  * // {
  * //   videoId: "550e8400-e29b-41d4-a716-446655440000",
@@ -97,7 +98,7 @@ const validatePrompt = (prompt: string): string => {
  * - Использует выборочную загрузку полей (select)
  * - Кэширует userId для логирования
  */
-export const createVideo = async (prompt: string) => {
+export const createVideo = async (prompt: string, imageModel?: string) => {
   const startTime = Date.now()
   let videoId: string | null = null
   let transactionCommitted = false
@@ -167,6 +168,17 @@ export const createVideo = async (prompt: string) => {
     // Устанавливаем флаг сразу после успешного завершения транзакции
     // Это гарантирует корректную обработку ошибок если последующие операции провалятся
     transactionCommitted = true
+
+    // Сохраняем imageModel в Redis для использования в процессе генерации
+    // Это позволяет избежать передачи через всю цепочку вызовов
+    if (videoId) {
+      try {
+        const { setVideoMetadata } = await import('@/lib/redis');
+        await setVideoMetadata(videoId, { imageModel: imageModel || 'ideogram-v3-turbo' });
+      } catch (redisError) {
+        console.warn('Failed to save imageModel to Redis, will use default:', redisError);
+      }
+    }
 
     // Добавляем задачу в очередь только после успешного создания записи в БД
     // Это гарантирует, что воркер получит только валидные задачи
