@@ -7,8 +7,6 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
     scrollRestoration: true,
   },
-  // Webpack bundle optimization
-  bundlePagesRouterDependencies: false,
   // Оптимизация webpack
   webpack: (config, { isServer }) => {
     // Исключаем большие зависимости из клиентского bundle'а
@@ -22,21 +20,7 @@ const nextConfig: NextConfig = {
       };
     }
     
-    // Оптимизация размера bundle'а
-    config.optimization = {
-      ...config.optimization,
-    };
-    
     return config;
-  },
-  // Configuration for Turbopack (experimental)
-  turbopack: {
-    rules: {
-      "*.svg": {
-        loaders: ["@svgr/webpack"],
-        as: "*.js",
-      },
-    },
   },
   // Image configuration for external domains
   images: {
