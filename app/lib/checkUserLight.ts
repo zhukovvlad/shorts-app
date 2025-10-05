@@ -30,12 +30,12 @@ const checkUserLight = async (): Promise<string | null> => {
     return userId;
   } catch (error) {
     if (error instanceof Error) {
-      console.error("Ошибка в checkUserLight():", {
+      logger.error("Ошибка в checkUserLight()", {
         message: error.message,
         userId: 'скрыто для безопасности'
       });
     } else {
-      console.error("checkUserLight() завершился с неизвестной ошибкой:", error);
+      logger.error("checkUserLight() завершился с неизвестной ошибкой", { error });
     }
     return null;
   }

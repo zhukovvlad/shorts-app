@@ -1,5 +1,6 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { prisma, withRetry } from "./db";
+import { logger } from "@/lib/logger";
 
 /**
  * Проверяет существование пользователя в базе данных и возвращает его Clerk ID.
@@ -37,7 +38,7 @@ const checkUser = async (): Promise<string | null> => {
       const user = await client.users.getUser(userId);
       email = user.primaryEmailAddress?.emailAddress ?? `${userId}@placeholder.invalid`;
     } catch (clerkError) {
-      console.warn("Не удалось получить данные пользователя из Clerk, используем placeholder email:", clerkError);
+      logger.warn("Не удалось получить данные пользователя из Clerk, используем placeholder email", { error: clerkError });
       email = `${userId}@placeholder.invalid`;
     }
 
@@ -56,13 +57,13 @@ const checkUser = async (): Promise<string | null> => {
     return userId;
   } catch (error) {
     if (error instanceof Error) {
-      console.error("Ошибка в checkUser():", {
+      logger.error("Ошибка в checkUser()", {
         message: error.message,
         stack: error.stack,
         name: error.name
       });
     } else {
-      console.error("checkUser() завершился с неизвестной ошибкой:", error);
+      logger.error("checkUser() завершился с неизвестной ошибкой", { error });
     }
     return null;
   }

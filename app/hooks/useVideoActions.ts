@@ -122,7 +122,10 @@ export const useVideoActions = ({
         description: "Your video is being downloaded.",
       });
     } catch (error) {
-      console.error("Download failed:", error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Download failed:", error);
+      }
       toast.error("Download failed", {
         description: "An error occurred while downloading the video.",
       });
@@ -157,7 +160,10 @@ export const useVideoActions = ({
         description: "Video link copied to clipboard.",
       });
     } catch (error) {
-      console.error("Failed to copy link:", error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Failed to copy link:", error);
+      }
       toast.error("Copy failed", {
         description: "Failed to copy link to clipboard.",
       });
@@ -202,7 +208,10 @@ export const useVideoActions = ({
         });
       }
     } catch (error) {
-      console.error("Delete operation failed:", error);
+      if (process.env.NODE_ENV === 'development') {
+        // eslint-disable-next-line no-console
+        console.error("Delete operation failed:", error);
+      }
       toast.error("Delete failed", { 
         description: "An unexpected error occurred while deleting the video." 
       });
