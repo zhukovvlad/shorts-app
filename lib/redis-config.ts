@@ -18,7 +18,7 @@ export function createRedisConfig(): RedisOptions {
       port = parsedPort;
     } else {
       logger.warn('Invalid TIMEWEB_REDIS_PORT, falling back to 6379', { 
-        providedPort: process.env.TIMEWEB_REDIS_PORT 
+        providedPort: '[INVALID]'
       });
     }
   }

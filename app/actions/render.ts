@@ -1,5 +1,6 @@
 import { prisma } from "@/app/lib/db";
 import { getRenderProgress, renderMediaOnLambda } from "@remotion/lambda/client";
+import { logger } from "@/lib/logger";
 
 export const renderVideo = async (videoId: string) => {
     try {
@@ -34,11 +35,13 @@ export const renderVideo = async (videoId: string) => {
                 bucketName
             });
             if (progress.fatalErrorEncountered) {
-                console.log("render failed:", progress.errors);
+                logger.error("Render failed", {
+                  errors: progress.errors
+                });
             }
             if (progress.done) {
                 const videoUrl = progress.outputFile || `https://${bucketName}.s3.eu-north-1.amazonaws.com/${renderId}/out.mp4`;
-                console.log("render completed:", videoUrl);
+                logger.info("Render completed", { renderId });
 
                 await prisma.video.update({
                     where: { videoId },
@@ -51,10 +54,12 @@ export const renderVideo = async (videoId: string) => {
             const framesRendered = progress.framesRendered || 0;
             const percent = Math.floor(progress.overallProgress * 100);
 
-            console.log((`progress is ${percent}, frames rendered: ${framesRendered}`));
+            logger.info((`progress is ${percent}, frames rendered: ${framesRendered}`));
         }
     } catch (error) {
-        console.error('error while rendering video in remotion:', error);
+        logger.error('Error while rendering video in remotion', {
+          error: error instanceof Error ? error.message : String(error)
+        });
         throw error;
     }
 };

@@ -3,6 +3,7 @@ import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import { randomUUID } from "crypto";
 import { Readable } from "stream";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { logger } from "@/lib/logger";
 
 const client = new ElevenLabsClient({
   apiKey: process.env.ELEVENLABS_API_KEY!,
@@ -25,7 +26,7 @@ export const generateAudio = async (videoId: string) => {
       return undefined;
     }
 
-    console.log(" in audio now");
+    logger.debug("Starting audio generation");
 
     const webStream = await client.textToSpeech.stream(
       "JBFqnCBsd6RMkjVDRZzb",
@@ -58,7 +59,7 @@ export const generateAudio = async (videoId: string) => {
     await s3Client.send(command);
 
     const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-    console.log("s3Url", s3Url);
+    logger.info("Audio uploaded to S3", { fileName });
 
     await prisma.video.update({
       where: { videoId },
@@ -66,7 +67,9 @@ export const generateAudio = async (videoId: string) => {
     });
 
   } catch (error) {
-    console.error("Error generating audio:", error);
+    logger.error("Error generating audio", {
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 };

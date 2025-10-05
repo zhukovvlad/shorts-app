@@ -22,8 +22,8 @@ function getRedisInstance(): Redis {
     const config = createRedisConfig();
     
     logger.debug('Creating Redis instance with config', {
-      host: config.host,
-      port: config.port,
+      host: config.host ? '[SET]' : '[NOT SET]',
+      port: config.port ? '[SET]' : '[NOT SET]',
       username: config.username ? '[SET]' : '[NOT SET]',
       password: config.password ? '[SET]' : '[NOT SET]'
     });
@@ -141,7 +141,10 @@ export const setVideoProgress = async (videoId: string, progress: VideoProgress)
     
     await redis.setex(key, VIDEO_PROGRESS_TTL, JSON.stringify(sanitizedProgress));
   } catch (error) {
-    console.error('Failed to set video progress in Redis:', error);
+    logger.error('Failed to set video progress in Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     // В случае ошибки Redis не блокируем процесс
   }
 };
@@ -153,7 +156,10 @@ export const getVideoProgress = async (videoId: string): Promise<VideoProgress |
     const data = await redis.get(key);
     return data ? JSON.parse(data) : null;
   } catch (error) {
-    console.error('Failed to get video progress from Redis:', error);
+    logger.error('Failed to get video progress from Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return null; // Возвращаем null при ошибке
   }
 };
@@ -164,7 +170,10 @@ export const deleteVideoProgress = async (videoId: string) => {
     const key = `${VIDEO_PROGRESS_PREFIX}${videoId}`;
     await redis.del(key);
   } catch (error) {
-    console.error('Failed to delete video progress from Redis:', error);
+    logger.error('Failed to delete video progress from Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     // В случае ошибки не блокируем процесс
   }
 };
@@ -177,7 +186,10 @@ export const setVideoCheckpoint = async (videoId: string, checkpoint: VideoCheck
     const key = `${VIDEO_CHECKPOINT_PREFIX}${videoId}`;
     await redis.setex(key, VIDEO_CHECKPOINT_TTL, JSON.stringify(checkpoint));
   } catch (error) {
-    console.error('Failed to set video checkpoint in Redis:', error);
+    logger.error('Failed to set video checkpoint in Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 
@@ -188,7 +200,10 @@ export const getVideoCheckpoint = async (videoId: string): Promise<VideoCheckpoi
     const data = await redis.get(key);
     return data ? JSON.parse(data) : null;
   } catch (error) {
-    console.error('Failed to get video checkpoint from Redis:', error);
+    logger.error('Failed to get video checkpoint from Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return null;
   }
 };
@@ -215,10 +230,17 @@ export const markStepCompleted = async (videoId: string, userId: string, step: s
       checkpoint.timestamp = Date.now();
       
       await setVideoCheckpoint(videoId, checkpoint);
-      console.log(`✅ Checkpoint: Step '${step}' completed for video ${videoId}`);
+      logger.debug('Checkpoint step completed', {
+        videoId,
+        step
+      });
     }
   } catch (error) {
-    console.error('Failed to mark step as completed:', error);
+    logger.error('Failed to mark step as completed', {
+      videoId,
+      step,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 
@@ -241,9 +263,16 @@ export const markStepFailed = async (videoId: string, userId: string, step: stri
     checkpoint.timestamp = Date.now();
     
     await setVideoCheckpoint(videoId, checkpoint);
-    console.log(`❌ Checkpoint: Step '${step}' failed for video ${videoId}`);
+    logger.warn('Checkpoint step failed', {
+      videoId,
+      step
+    });
   } catch (error) {
-    console.error('Failed to mark step as failed:', error);
+    logger.error('Failed to mark step as failed', {
+      videoId,
+      step,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 
@@ -269,7 +298,10 @@ export const deleteVideoCheckpoint = async (videoId: string) => {
     const key = `${VIDEO_CHECKPOINT_PREFIX}${videoId}`;
     await redis.del(key);
   } catch (error) {
-    console.error('Failed to delete video checkpoint from Redis:', error);
+    logger.error('Failed to delete video checkpoint from Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };
 
@@ -278,10 +310,12 @@ export const testRedisConnection = async (): Promise<boolean> => {
   try {
     const redis = getRedisInstance();
     const result = await redis.ping();
-    console.log('Redis ping successful:', result);
+    logger.info('Redis ping successful', { result });
     return true;
   } catch (error) {
-    console.error('Redis ping failed:', error);
+    logger.error('Redis ping failed', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     return false;
   }
 };
@@ -300,7 +334,10 @@ export const setVideoMetadata = async (videoId: string, metadata: VideoMetadataS
     const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
     await redis.set(key, JSON.stringify(metadata), 'EX', 86400); // TTL 24 часа
   } catch (error) {
-    console.error('Failed to set video metadata in Redis:', error);
+    logger.error('Failed to set video metadata in Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 };
@@ -315,7 +352,10 @@ export const getVideoMetadata = async (videoId: string): Promise<VideoMetadataSa
     const data = await redis.get(key);
     return data ? JSON.parse(data) : null;
   } catch (error) {
-    console.error('Failed to get video metadata from Redis:', error);
+    logger.error('Failed to get video metadata from Redis', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     return null;
   }
 };
@@ -380,8 +420,14 @@ export const updateVideoProgressAndCheckpoint = async (
     }
     
     await pipeline.exec();
-    console.log(`✅ Batched update for ${videoId}${completedStep ? ` (completed: ${completedStep})` : ''}`);
+    logger.debug('Batched update completed', {
+      videoId,
+      completedStep: completedStep || 'none'
+    });
   } catch (error) {
-    console.error('Failed to batch update video progress and checkpoint:', error);
+    logger.error('Failed to batch update video progress and checkpoint', {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 };

@@ -15,8 +15,8 @@ function createRedisConnection(): Redis {
         const config = createRedisConfig();
         
         logger.debug('Creating Redis connection with config', {
-            host: config.host,
-            port: config.port,
+            host: config.host ? '[SET]' : '[NOT SET]',
+            port: config.port ? '[SET]' : '[NOT SET]',
             username: config.username ? '[SET]' : '[NOT SET]',
             password: config.password ? '[SET]' : '[NOT SET]'
         });

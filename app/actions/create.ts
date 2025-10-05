@@ -23,6 +23,7 @@ import { auth } from "@clerk/nextjs/server"
 import { randomUUID } from "crypto"
 import { prisma } from "../lib/db"
 import { videoQueue } from "../lib/queue"
+import { logger } from "@/lib/logger"
 
 /**
  * Валидирует и очищает входной промпт для создания видео
@@ -114,7 +115,10 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
     // Валидация входных данных
     const validatedPrompt = validatePrompt(prompt)
 
-    console.log(`[${userId}] Creating video with prompt length: ${validatedPrompt.length}`)
+    logger.info('Creating video', {
+      userId,
+      promptLength: validatedPrompt.length
+    });
 
     // Примечание: проверка кредитов происходит атомарно внутри транзакции
     // для предотвращения состояний гонки
@@ -176,7 +180,9 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
         const { setVideoMetadata } = await import('@/lib/redis');
         await setVideoMetadata(videoId, { imageModel: imageModel || 'ideogram-v3-turbo' });
       } catch (redisError) {
-        console.warn('Failed to save imageModel to Redis, will use default:', redisError);
+        logger.warn('Failed to save imageModel to Redis, will use default', {
+          error: redisError instanceof Error ? redisError.message : String(redisError)
+        });
       }
     }
 
@@ -203,7 +209,12 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
     )
 
     const executionTime = Date.now() - startTime
-    console.log(`[${userId}] Video creation completed successfully. VideoId: ${videoId}, JobId: ${job.id}, ExecutionTime: ${executionTime}ms`)
+    logger.info('Video creation completed successfully', {
+      userId,
+      videoId,
+      jobId: job.id,
+      executionTime
+    });
 
     return {
       videoId,
@@ -213,7 +224,9 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
 
   } catch (error) {
     const executionTime = Date.now() - startTime
-    console.error(`[${userId}] Video creation failed. ExecutionTime: ${executionTime}ms`, {
+    logger.error('Video creation failed', {
+      userId,
+      executionTime,
       error: error instanceof Error ? error.message : 'Unknown error',
       videoId,
       transactionCommitted
@@ -232,9 +245,16 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
         })
 
         if (!existingVideo) {
-          console.warn(`[${userId}] Video record ${videoId} not found in database, cannot update status`)
+          logger.warn('Video record not found in database, cannot update status', {
+            userId,
+            videoId
+          });
         } else if (existingVideo.userId !== userId) {
-          console.warn(`[${userId}] Video record ${videoId} belongs to different user, cannot update status`)
+          logger.warn('Video record belongs to different user, cannot update status', {
+            userId,
+            videoId,
+            actualUserId: existingVideo.userId
+          });
         } else {
           // Запись существует и принадлежит пользователю, безопасно обновляем статус
           await prisma.video.update({
@@ -244,11 +264,17 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
               failed: true
             }
           })
-          console.log(`[${userId}] Video ${videoId} marked as failed`)
+          logger.info('Video marked as failed', {
+            userId,
+            videoId
+          });
         }
       } catch (updateError) {
         // Ошибка при обновлении статуса не должна прерывать основной поток
-        console.error(`[${userId}] Failed to update video status:`, updateError)
+        logger.error('Failed to update video status', {
+          userId,
+          error: updateError instanceof Error ? updateError.message : String(updateError)
+        });
       }
     }
 
