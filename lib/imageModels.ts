@@ -124,7 +124,10 @@ export const getModelById = (modelId: string): ImageModel | undefined => {
 export const getDefaultModel = (): ImageModel => {
   // Защита от пустого массива моделей
   if (IMAGE_MODELS.length === 0) {
-    logger.warn('IMAGE_MODELS is empty, using fallback default model');
+    logger.warn('IMAGE_MODELS is empty, using fallback default model', {
+      fallbackModel: FALLBACK_DEFAULT_MODEL.id,
+      fallbackModelName: FALLBACK_DEFAULT_MODEL.name
+    });
     return FALLBACK_DEFAULT_MODEL;
   }
   
