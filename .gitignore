@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+logs-test/
+*.spec.js
+*.test.js
 
 # next.js
 /.next/

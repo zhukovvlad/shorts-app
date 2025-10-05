@@ -29,7 +29,9 @@ export const userCredits = async (userIdFromCaller?: string | null): Promise<num
 
     return userData.credits;
   } catch (error) {
-    console.error("Ошибка при получении кредитов пользователя:", error);
+    logger.error("Ошибка при получении кредитов пользователя", {
+      error: error instanceof Error ? error.message : String(error)
+    });
     // В продакшене можно отправлять ошибки в систему мониторинга
     return 0;
   }
