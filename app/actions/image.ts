@@ -67,18 +67,31 @@ const processImage = async (img: string, modelId?: string) => {
         return value;
       }
       if (value && typeof value === 'object') {
-        // Проверяем метод url()
-        if (typeof value.url === 'function') {
-          const urlResult = value.url();
-          // url() может вернуть строку или объект с href
-          if (typeof urlResult === 'string') {
-            return urlResult;
+        // СНАЧАЛА проверяем value.url как строку или объект (до проверки функции)
+        if (value.url !== undefined) {
+          // Случай 1: { url: "https://..." }
+          if (typeof value.url === 'string') {
+            return value.url;
           }
-          if (urlResult && typeof urlResult === 'object' && urlResult.href) {
-            return urlResult.href;
+          // Случай 2: { url: { href: "..." } }
+          if (typeof value.url === 'object' && value.url !== null && value.url.href) {
+            if (typeof value.url.href === 'string') {
+              return value.url.href;
+            }
+          }
+          // Случай 3: { url: () => ... } - метод url()
+          if (typeof value.url === 'function') {
+            const urlResult = value.url();
+            // url() может вернуть строку или объект с href
+            if (typeof urlResult === 'string') {
+              return urlResult;
+            }
+            if (urlResult && typeof urlResult === 'object' && urlResult.href) {
+              return urlResult.href;
+            }
           }
         }
-        // Проверяем свойство href
+        // Проверяем свойство href напрямую
         if (value.href && typeof value.href === 'string') {
           return value.href;
         }
