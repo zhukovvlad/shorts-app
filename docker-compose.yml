@@ -24,7 +24,7 @@ services:
 
   worker:
     build: .
-    command: npm run worker
+    command: npx tsx worker/worker.ts
     environment:
       - NODE_ENV=production
       - LOG_TO_FILE=true

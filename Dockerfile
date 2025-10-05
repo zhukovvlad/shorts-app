@@ -34,10 +34,19 @@ RUN adduser --system --uid 1001 nextjs
 # Create logs directory
 RUN mkdir -p /app/logs && chown nextjs:nodejs /app/logs
 
+# Copy package files and install production dependencies for worker
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy worker directory and other necessary files
+COPY --from=builder /app/worker ./worker
+COPY --from=builder /app/app ./app
+COPY --from=builder /app/lib ./lib
 
 USER nextjs
 

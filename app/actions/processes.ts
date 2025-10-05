@@ -50,7 +50,7 @@ export const processVideo = async (videoId: string, userId: string) => {
       logger.info(`🔧 Executing step: ${step}`);
 
       switch (step) {
-        case 'script':
+        case 'script': {
           await setVideoProgress(videoId, {
             status: 'script',
             step: 'Генерация сценария...',
@@ -87,6 +87,7 @@ export const processVideo = async (videoId: string, userId: string) => {
           );
           logger.info("✅ Script generation completed");
           break;
+        }
 
         case 'images':
           await setVideoProgress(videoId, {
