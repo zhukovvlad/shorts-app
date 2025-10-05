@@ -89,7 +89,7 @@ export const processVideo = async (videoId: string, userId: string) => {
           break;
         }
 
-        case 'images':
+        case 'images': {
           await setVideoProgress(videoId, {
             status: 'images',
             step: 'Создание изображений...',
@@ -103,8 +103,9 @@ export const processVideo = async (videoId: string, userId: string) => {
           );
           logger.info("✅ Images generation completed");
           break;
+        }
 
-        case 'audio':
+        case 'audio': {
           await setVideoProgress(videoId, {
             status: 'audio',
             step: 'Синтез речи...',
@@ -118,8 +119,9 @@ export const processVideo = async (videoId: string, userId: string) => {
           );
           logger.info("✅ Audio generation completed");
           break;
+        }
 
-        case 'captions':
+        case 'captions': {
           await setVideoProgress(videoId, {
             status: 'captions',
             step: 'Генерация субтитров...',
@@ -133,8 +135,9 @@ export const processVideo = async (videoId: string, userId: string) => {
           );
           logger.info("✅ Captions generation completed");
           break;
+        }
 
-        case 'render':
+        case 'render': {
           // videoDuration должен быть вызван перед рендерингом
           await videoDuration(videoId);
 
@@ -151,6 +154,7 @@ export const processVideo = async (videoId: string, userId: string) => {
           );
           logger.info("✅ Video rendering completed");
           break;
+        }
       }
     }
 

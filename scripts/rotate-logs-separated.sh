@@ -1,37 +1,10 @@
 #!/bin/bash
 
 # Strict mode: fail fast and catch errors early
-set -euo # Удаляем архивы воркера старше 30 дней
-echo "Deleting worker archives older than $WORKER_DELETE_DAYS days..."
-set +e  # Временно отключаем errexit
-find "$LOG_DIR" -name "worker-*.log.gz" -type f -mtime +"$WORKER_DELETE_DAYS" -print0 2>/dev/null | while IFS= read -r -d '' archive; do
-  if [ -f "$archive" ]; then
-    echo "  DELETING: $archive"
-    if rm -f "$archive" 2>/dev/null; then
-      : # Success - continue
-    else
-      echo "  ERROR deleting $archive: failed to remove file" >&2
-    fi
-  fi
-done
-set -e  # Включаем errexit обратно
-echo "  - Deleted worker archives: processed files (check output above for details)"\n\t'
+set -euo pipefail
+IFS=$'\n\t'
 
-# Скрипт ротации л# Удаляем архивы сервера старше 90 дней
-echo "Deleting server archives older than $SERVER_DELETE_DAYS days..."
-set +e  # Временно отключаем errexit
-find "$LOG_DIR" -name "server-*.log.gz" -type f -mtime +"$SERVER_DELETE_DAYS" -print0 2>/dev/null | while IFS= read -r -d '' archive; do
-  if [ -f "$archive" ]; then
-    echo "  DELETING: $archive"
-    if rm -f "$archive" 2>/dev/null; then
-      : # Success - continue
-    else
-      echo "  ERROR deleting $archive: failed to remove file" >&2
-    fi
-  fi
-done
-set -e  # Включаем errexit обратно
-echo "  - Deleted server archives: processed files (check output above for details)" App с разделением сервер/воркер
+# Скрипт ротации логов Shorts App с разделением сервер/воркер
 # Использовать в cron: 0 2 * * * /path/to/rotate-logs-separated.sh
 
 LOG_DIR="${LOG_DIR:-./logs}"
@@ -105,7 +78,7 @@ echo "  - Archived worker logs older than $WORKER_ARCHIVE_DAYS days"
 # Удаляем архивы воркера старше 30 дней
 echo "Deleting worker archives older than $WORKER_DELETE_DAYS days..."
 set +e  # Временно отключаем errexit
-find "$LOG_DIR" -name "worker-*.log.gz" -type f -mtime +$WORKER_DELETE_DAYS -print 2>/dev/null | while read -r archive; do
+find "$LOG_DIR" -name "worker-*.log.gz" -type f -mtime +"$WORKER_DELETE_DAYS" -print0 2>/dev/null | while IFS= read -r -d '' archive; do
   if [ -f "$archive" ]; then
     echo "  DELETING: $archive"
     if rm -f "$archive" 2>/dev/null; then
@@ -152,7 +125,7 @@ echo "  - Archived server logs older than $SERVER_ARCHIVE_DAYS days"
 # Удаляем архивы сервера старше 90 дней
 echo "Deleting server archives older than $SERVER_DELETE_DAYS days..."
 set +e  # Временно отключаем errexit
-find "$LOG_DIR" -name "server-*.log.gz" -type f -mtime +$SERVER_DELETE_DAYS -print 2>/dev/null | while read -r archive; do
+find "$LOG_DIR" -name "server-*.log.gz" -type f -mtime +"$SERVER_DELETE_DAYS" -print0 2>/dev/null | while IFS= read -r -d '' archive; do
   if [ -f "$archive" ]; then
     echo "  DELETING: $archive"
     if rm -f "$archive" 2>/dev/null; then
