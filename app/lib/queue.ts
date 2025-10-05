@@ -1,38 +1,28 @@
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { logger } from "@/lib/logger";
+import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 
 let redisConnection: Redis | null = null;
 let videoQueueInstance: Queue | null = null;
 
 function createRedisConnection(): Redis {
     if (!redisConnection) {
-        // Логируем переменные окружения для отладки
+        // Валидируем конфигурацию
+        validateRedisConfig();
+        
+        // Создаем конфигурацию
+        const config = createRedisConfig();
+        
         logger.debug('Creating Redis connection with config', {
-            host: process.env.TIMEWEB_REDIS_HOST,
-            port: process.env.TIMEWEB_REDIS_PORT,
-            username: process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]',
-            password: process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]'
+            host: config.host,
+            port: config.port,
+            username: config.username ? '[SET]' : '[NOT SET]',
+            password: config.password ? '[SET]' : '[NOT SET]'
         });
-        
-        // Проверяем, что все необходимые переменные установлены
-        if (!process.env.TIMEWEB_REDIS_HOST || !process.env.TIMEWEB_REDIS_PASSWORD) {
-            logger.error('Missing required Redis configuration: TIMEWEB_REDIS_HOST and TIMEWEB_REDIS_PASSWORD must be set');
-            throw new Error('Missing required Redis configuration: TIMEWEB_REDIS_HOST and TIMEWEB_REDIS_PASSWORD must be set');
-        }
-        
-        const port = process.env.TIMEWEB_REDIS_PORT ? parseInt(process.env.TIMEWEB_REDIS_PORT, 10) : 6379;
-        if (isNaN(port)) {
-            logger.error('TIMEWEB_REDIS_PORT must be a valid number', { port: process.env.TIMEWEB_REDIS_PORT });
-            throw new Error('TIMEWEB_REDIS_PORT must be a valid number');
-        }
 
         redisConnection = new Redis({
-            host: process.env.TIMEWEB_REDIS_HOST,
-            port,
-            username: process.env.TIMEWEB_REDIS_USERNAME,
-            password: process.env.TIMEWEB_REDIS_PASSWORD,
-            maxRetriesPerRequest: null,
+            ...config,
             // lazyConnect: true помогает избежать создания подключения до первого использования
             lazyConnect: false, // BullMQ требует немедленного подключения
         });

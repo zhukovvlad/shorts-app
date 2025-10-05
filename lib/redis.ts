@@ -1,5 +1,6 @@
 import { Redis } from 'ioredis';
 import { logger } from '@/lib/logger';
+import { createRedisConfig, validateRedisConfig } from '@/lib/redis-config';
 
 let redisInstance: Redis | null = null;
 
@@ -14,45 +15,21 @@ export function setRedisInstance(instance: Redis): void {
 
 function getRedisInstance(): Redis {
   if (!redisInstance) {
-    // Проверяем наличие необходимых переменных окружения
-    const redisHost = process.env.TIMEWEB_REDIS_HOST;
-    const redisUsername = process.env.TIMEWEB_REDIS_USERNAME;
-    const redisPassword = process.env.TIMEWEB_REDIS_PASSWORD;
-    
-    // Валидируем порт
-    let redisPort = 6379; // Значение по умолчанию
-    if (process.env.TIMEWEB_REDIS_PORT) {
-      const parsedPort = parseInt(process.env.TIMEWEB_REDIS_PORT, 10);
-      if (!isNaN(parsedPort) && parsedPort > 0 && parsedPort <= 65535) {
-        redisPort = parsedPort;
-      } else {
-        logger.warn('Invalid TIMEWEB_REDIS_PORT, falling back to 6379', { 
-          providedPort: process.env.TIMEWEB_REDIS_PORT 
-        });
-      }
-    }
+    // Валидируем конфигурацию
+    validateRedisConfig();
 
+    // Создаем конфигурацию
+    const config = createRedisConfig();
+    
     logger.debug('Creating Redis instance with config', {
-      host: redisHost,
-      port: redisPort,
-      username: redisUsername ? '[SET]' : '[NOT SET]',
-      password: redisPassword ? '[SET]' : '[NOT SET]'
+      host: config.host,
+      port: config.port,
+      username: config.username ? '[SET]' : '[NOT SET]',
+      password: config.password ? '[SET]' : '[NOT SET]'
     });
 
-    if (!redisHost || !redisPassword) {
-      logger.error('Missing required Redis configuration', {
-        host: redisHost ? '[SET]' : '[NOT SET]',
-        password: redisPassword ? '[SET]' : '[NOT SET]'
-      });
-      throw new Error('TIMEWEB_REDIS_HOST and TIMEWEB_REDIS_PASSWORD must be set for Redis functionality');
-    }
-
     redisInstance = new Redis({
-      host: redisHost,
-      port: redisPort,
-      username: redisUsername,
-      password: redisPassword,
-      maxRetriesPerRequest: null,
+      ...config,
       enableReadyCheck: false,
       lazyConnect: true,
     });
