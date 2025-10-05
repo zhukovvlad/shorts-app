@@ -5,6 +5,8 @@
  * для генерации изображений с их характеристиками и параметрами.
  */
 
+import { logger } from './logger';
+
 export interface ImageModel {
   id: string;
   name: string;
@@ -122,7 +124,7 @@ export const getModelById = (modelId: string): ImageModel | undefined => {
 export const getDefaultModel = (): ImageModel => {
   // Защита от пустого массива моделей
   if (IMAGE_MODELS.length === 0) {
-    console.warn('IMAGE_MODELS is empty, using fallback default model');
+    logger.warn('IMAGE_MODELS is empty, using fallback default model');
     return FALLBACK_DEFAULT_MODEL;
   }
   

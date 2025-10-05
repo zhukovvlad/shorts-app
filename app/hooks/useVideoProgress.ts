@@ -43,6 +43,7 @@ export const useVideoProgress = (videoId: string | null) => {
         
         // Логируем данные для отладки (только в development)
         if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
           console.log('📊 Progress:', data.status, 
             data.completedSteps ? `(${Object.values(data.completedSteps).filter(Boolean).length}/5 completed)` : '(no checkpoint)');
         }
@@ -59,7 +60,10 @@ export const useVideoProgress = (videoId: string | null) => {
             currentPollInterval = newInterval;
             clearInterval(interval);
             interval = setInterval(checkProgress, currentPollInterval);
-            console.log(`🐌 Polling замедлен до ${currentPollInterval/1000}s из-за отсутствия изменений`);
+            if (process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.log(`🐌 Polling замедлен до ${currentPollInterval/1000}s из-за отсутствия изменений`);
+            }
           }
         } else {
           // Статус изменился - возвращаемся к быстрому polling
@@ -68,7 +72,10 @@ export const useVideoProgress = (videoId: string | null) => {
             currentPollInterval = 3000;
             clearInterval(interval);
             interval = setInterval(checkProgress, currentPollInterval);
-            console.log(`⚡ Polling ускорен до ${currentPollInterval/1000}s из-за изменений`);
+            if (process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.log(`⚡ Polling ускорен до ${currentPollInterval/1000}s из-за изменений`);
+            }
           }
         }
         
@@ -120,7 +127,11 @@ export const useVideoProgress = (videoId: string | null) => {
         // Если status='error' И есть retryCount - продолжаем polling
         // Если status='retrying' - продолжаем polling
       } catch (error) {
-        console.error('Failed to check progress:', error);
+        if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
+          console.error('Failed to check progress:', error);
+        }
+        // В production ошибки сети не логируем в консоль, но можно показать toast если нужно
       }
     };
 

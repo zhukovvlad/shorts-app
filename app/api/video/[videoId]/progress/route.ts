@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getVideoProgress, getVideoCheckpoint } from '@/lib/redis';
 import { prisma } from '@/app/lib/db';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -82,7 +83,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Progress check error:', error);
+    logger.error('Progress check error', { error });
     return NextResponse.json(
       { error: 'Internal server error' }, 
       { status: 500 }
