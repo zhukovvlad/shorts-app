@@ -80,12 +80,17 @@ console.log('Debug info:', data);
 Logger поддерживает структурированные данные:
 
 ```typescript
-// ✅ Отлично - структурированные данные
+// ✅ Отлично - структурированные данные с контекстом
 logger.error('Video processing failed', {
   videoId: '123',
   step: 'render',
   error: error.message,
   retryCount: 3
+});
+
+logger.warn('IMAGE_MODELS is empty, using fallback default model', {
+  fallbackModel: 'ideogram-v3-turbo',
+  fallbackModelName: 'Ideogram V3 Turbo'
 });
 
 // ❌ Плохо - неструктурированная строка
