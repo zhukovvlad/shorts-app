@@ -28,11 +28,13 @@ export const useVideoProgress = (videoId: string | null) => {
   const [progress, setProgress] = useState<VideoProgressResponse>({ status: 'script' });
   const [isPolling, setIsPolling] = useState(false);
   const lastProgressRef = useRef<VideoProgressResponse>({ status: 'script' });
+  const unchangedCountRef = useRef(0); // Счетчик неизменных состояний
 
   useEffect(() => {
     if (!videoId) return;
 
     let interval: NodeJS.Timeout;
+    let currentPollInterval = 3000; // Начальный интервал 3 секунды
     
     const checkProgress = async () => {
       try {
@@ -47,6 +49,28 @@ export const useVideoProgress = (videoId: string | null) => {
         
         // Проверяем изменения для показа уведомлений
         const lastProgress = lastProgressRef.current;
+        
+        // Адаптивный polling: если статус не меняется, замедляем запросы
+        if (lastProgress.status === data.status && lastProgress.step === data.step) {
+          unchangedCountRef.current++;
+          // Постепенно увеличиваем интервал до максимум 8 секунд
+          const newInterval = Math.min(3000 + (unchangedCountRef.current * 1000), 8000);
+          if (newInterval !== currentPollInterval) {
+            currentPollInterval = newInterval;
+            clearInterval(interval);
+            interval = setInterval(checkProgress, currentPollInterval);
+            console.log(`🐌 Polling замедлен до ${currentPollInterval/1000}s из-за отсутствия изменений`);
+          }
+        } else {
+          // Статус изменился - возвращаемся к быстрому polling
+          if (unchangedCountRef.current > 0) {
+            unchangedCountRef.current = 0;
+            currentPollInterval = 3000;
+            clearInterval(interval);
+            interval = setInterval(checkProgress, currentPollInterval);
+            console.log(`⚡ Polling ускорен до ${currentPollInterval/1000}s из-за изменений`);
+          }
+        }
         
         // Уведомление о начале ретрая
         if (data.status === 'retrying' && lastProgress.status !== 'retrying') {
@@ -101,7 +125,7 @@ export const useVideoProgress = (videoId: string | null) => {
     };
 
     setIsPolling(true);
-    interval = setInterval(checkProgress, 1000); // Проверяем каждую секунду
+    interval = setInterval(checkProgress, 3000); // Проверяем каждые 3 секунды (было 1 сек)
     checkProgress(); // Первая проверка сразу
 
     return () => {

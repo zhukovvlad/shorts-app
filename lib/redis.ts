@@ -64,6 +64,15 @@ export const VIDEO_CHECKPOINT_PREFIX = 'video_checkpoint:';
 export const VIDEO_PROGRESS_TTL = 3600; // 1 час
 export const VIDEO_CHECKPOINT_TTL = 7200; // 2 часа (дольше чем прогресс)
 
+// Безопасная типизация для метаданных видео (не содержит PII)
+export interface VideoMetadataSafe {
+  imageModel?: string;  // Модель для генерации изображений
+  duration?: number;    // Длительность видео
+  format?: string;      // Формат видео
+  resolution?: string;  // Разрешение
+  // ⚠️ НЕ добавляйте сюда: email, username, phone, address и другие PII данные!
+}
+
 export interface VideoProgress {
   status: 'script' | 'images' | 'audio' | 'captions' | 'render' | 'completed' | 'error' | 'retrying';
   step?: string;
@@ -92,11 +101,49 @@ export interface VideoCheckpoint {
   timestamp: number;
 }
 
+/**
+ * Санитизирует текст ошибки, удаляя потенциально чувствительную информацию:
+ * - Пути к файлам с username
+ * - API ключи и токены
+ * - IP адреса
+ * - Внутренние пути сервера
+ */
+const sanitizeError = (error: string | undefined): string | undefined => {
+  if (!error) return undefined;
+  
+  let sanitized = error;
+  
+  // Удаляем полные пути к файлам (могут содержать username)
+  sanitized = sanitized.replace(/\/home\/[^\s]+/g, '[PATH]');
+  sanitized = sanitized.replace(/\/Users\/[^\s]+/g, '[PATH]');
+  sanitized = sanitized.replace(/C:\\\\Users\\\\[^\s]+/gi, '[PATH]');
+  
+  // Удаляем возможные токены/ключи (длинные строки base64/hex)
+  sanitized = sanitized.replace(/[A-Za-z0-9+\/]{30,}={0,2}/g, '[TOKEN]');
+  
+  // Удаляем IP адреса
+  sanitized = sanitized.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP]');
+  
+  // Удаляем Bearer токены
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [TOKEN]');
+  
+  return sanitized;
+};
+
 export const setVideoProgress = async (videoId: string, progress: VideoProgress) => {
   try {
     const redis = getRedisInstance();
     const key = `${VIDEO_PROGRESS_PREFIX}${videoId}`;
-    await redis.setex(key, VIDEO_PROGRESS_TTL, JSON.stringify(progress));
+    
+    // Санитизируем ошибки перед сохранением в Redis
+    const sanitizedProgress: VideoProgress = {
+      ...progress,
+      error: sanitizeError(progress.error),
+      lastError: sanitizeError(progress.lastError),
+      retryReason: sanitizeError(progress.retryReason)
+    };
+    
+    await redis.setex(key, VIDEO_PROGRESS_TTL, JSON.stringify(sanitizedProgress));
   } catch (error) {
     console.error('Failed to set video progress in Redis:', error);
     // В случае ошибки Redis не блокируем процесс
@@ -246,8 +293,12 @@ export const testRedisConnection = async (): Promise<boolean> => {
 // Префикс для метаданных видео
 const VIDEO_METADATA_PREFIX = 'video:metadata:';
 
-// Функция для сохранения метаданных видео
-export const setVideoMetadata = async (videoId: string, metadata: Record<string, any>): Promise<void> => {
+/**
+ * Сохраняет безопасные метаданные видео в Redis
+ * ⚠️ НЕ сохраняйте здесь PII данные (email, username, phone и т.д.)
+ * Только технические параметры обработки видео
+ */
+export const setVideoMetadata = async (videoId: string, metadata: VideoMetadataSafe): Promise<void> => {
   try {
     const redis = getRedisInstance();
     const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
@@ -258,8 +309,10 @@ export const setVideoMetadata = async (videoId: string, metadata: Record<string,
   }
 };
 
-// Функция для получения метаданных видео
-export const getVideoMetadata = async (videoId: string): Promise<Record<string, any> | null> => {
+/**
+ * Получает безопасные метаданные видео из Redis
+ */
+export const getVideoMetadata = async (videoId: string): Promise<VideoMetadataSafe | null> => {
   try {
     const redis = getRedisInstance();
     const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
@@ -268,5 +321,68 @@ export const getVideoMetadata = async (videoId: string): Promise<Record<string, 
   } catch (error) {
     console.error('Failed to get video metadata from Redis:', error);
     return null;
+  }
+};
+
+// === БАТЧИНГ ОПЕРАЦИЙ ДЛЯ ЭКОНОМИИ ЗАПРОСОВ ===
+
+/**
+ * Обновляет прогресс и checkpoint одновременно используя pipeline
+ * Экономит 1 запрос (2 вместо 3)
+ */
+export const updateVideoProgressAndCheckpoint = async (
+  videoId: string,
+  userId: string,
+  progress: Omit<VideoProgress, 'userId' | 'timestamp'>,
+  completedStep?: string
+) => {
+  try {
+    const redis = getRedisInstance();
+    const pipeline = redis.pipeline();
+    
+    // Добавляем обновление прогресса
+    const fullProgress: VideoProgress = {
+      ...progress,
+      userId,
+      timestamp: Date.now()
+    };
+    pipeline.setex(
+      `${VIDEO_PROGRESS_PREFIX}${videoId}`,
+      VIDEO_PROGRESS_TTL,
+      JSON.stringify(fullProgress)
+    );
+    
+    // Если указан завершенный шаг, обновляем checkpoint
+    if (completedStep) {
+      const checkpoint = await getVideoCheckpoint(videoId) || {
+        videoId,
+        userId,
+        completedSteps: {
+          script: false,
+          images: false,
+          audio: false,
+          captions: false,
+          render: false
+        },
+        timestamp: Date.now()
+      };
+      
+      if (completedStep in checkpoint.completedSteps) {
+        checkpoint.completedSteps[completedStep as keyof typeof checkpoint.completedSteps] = true;
+        checkpoint.lastCompletedStep = completedStep;
+        checkpoint.timestamp = Date.now();
+        
+        pipeline.setex(
+          `${VIDEO_CHECKPOINT_PREFIX}${videoId}`,
+          VIDEO_CHECKPOINT_TTL,
+          JSON.stringify(checkpoint)
+        );
+      }
+    }
+    
+    await pipeline.exec();
+    console.log(`✅ Batched update for ${videoId}${completedStep ? ` (completed: ${completedStep})` : ''}`);
+  } catch (error) {
+    console.error('Failed to batch update video progress and checkpoint:', error);
   }
 };

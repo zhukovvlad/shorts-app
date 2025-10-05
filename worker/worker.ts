@@ -119,12 +119,13 @@ const worker = new Worker('video-processing', async (job: Job) => {
             userId: video.userId
         }).catch(err => console.warn('Redis progress update failed:', err));
 
-        // Удаляем прогресс через 30 секунд
-        setTimeout(() => {
-            deleteVideoProgress(videoId).catch(err => 
-                console.warn('Redis progress cleanup failed:', err)
-            );
-        }, 30000);
+        // Удаляем прогресс через 30 секунд - ЗАКОММЕНТИРОВАНО для экономии Redis запросов
+        // TTL автоматически удалит через 1 час (VIDEO_PROGRESS_TTL)
+        // setTimeout(() => {
+        //     deleteVideoProgress(videoId).catch(err => 
+        //         console.warn('Redis progress cleanup failed:', err)
+        //     );
+        // }, 30000);
 
         console.log(`Completed processing for videoId: ${videoId}`);
     } catch (error) {
