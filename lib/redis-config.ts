@@ -34,6 +34,7 @@ export function createRedisConfig(): RedisOptions {
 
 /**
  * Валидирует наличие обязательных переменных окружения для Redis
+ * Username является опциональным для базового Redis, но обязателен для Timeweb Redis с ACL
  * @throws Error если обязательные переменные не установлены
  */
 export function validateRedisConfig(): void {
@@ -48,11 +49,5 @@ export function validateRedisConfig(): void {
       password: password ? '[SET]' : '[NOT SET]'
     });
     throw new Error('TIMEWEB_REDIS_HOST and TIMEWEB_REDIS_PASSWORD must be set for Redis functionality');
-  }
-
-  // Username является опциональным для Redis без ACL
-  // Но для Timeweb Redis с ACL он обязателен
-  if (username && !password) {
-    logger.warn('Redis username provided but password is missing');
   }
 }

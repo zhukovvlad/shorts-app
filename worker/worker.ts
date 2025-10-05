@@ -3,7 +3,7 @@ import { Worker, Job } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
 import { prisma } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
-import { createRedisConfig } from "@/lib/redis-config";
+import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 
 // Функция для определения, стоит ли делать ретрай
 function isRetryableError(error: unknown): boolean {
@@ -34,6 +34,9 @@ console.log('TIMEWEB_REDIS_HOST:', process.env.TIMEWEB_REDIS_HOST);
 console.log('TIMEWEB_REDIS_PORT:', process.env.TIMEWEB_REDIS_PORT);
 console.log('TIMEWEB_REDIS_USERNAME:', process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]');
 console.log('TIMEWEB_REDIS_PASSWORD:', process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]');
+
+// Валидируем конфигурацию Redis при старте
+validateRedisConfig();
 
 const connection = new Redis(createRedisConfig())
 
