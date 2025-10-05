@@ -340,16 +340,25 @@ export const updateVideoProgressAndCheckpoint = async (
     const redis = getRedisInstance();
     const pipeline = redis.pipeline();
     
-    // Добавляем обновление прогресса
+    // Добавляем обновление прогресса с санитизацией
     const fullProgress: VideoProgress = {
       ...progress,
       userId,
       timestamp: Date.now()
     };
+    
+    // Санитизируем ошибки перед сохранением в Redis
+    const sanitizedProgress: VideoProgress = {
+      ...fullProgress,
+      error: sanitizeError(fullProgress.error),
+      lastError: sanitizeError(fullProgress.lastError),
+      retryReason: sanitizeError(fullProgress.retryReason)
+    };
+    
     pipeline.setex(
       `${VIDEO_PROGRESS_PREFIX}${videoId}`,
       VIDEO_PROGRESS_TTL,
-      JSON.stringify(fullProgress)
+      JSON.stringify(sanitizedProgress)
     );
     
     // Если указан завершенный шаг, обновляем checkpoint
