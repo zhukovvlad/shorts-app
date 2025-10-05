@@ -3,21 +3,31 @@ import { logger } from '@/lib/logger';
 
 let redisInstance: Redis | null = null;
 
+/**
+ * Устанавливает внешний экземпляр Redis (например, из воркера)
+ * Используется для переиспользования одного соединения
+ */
+export function setRedisInstance(instance: Redis): void {
+  redisInstance = instance;
+  logger.info('Redis instance set from external source');
+}
+
 function getRedisInstance(): Redis {
   if (!redisInstance) {
     // Проверяем наличие необходимых переменных окружения
-    const redisHost = process.env.UPSTASH_REDIS_HOST;
-    const redisToken = process.env.UPSTASH_REDIS_TOKEN;
+    const redisHost = process.env.TIMEWEB_REDIS_HOST;
+    const redisUsername = process.env.TIMEWEB_REDIS_USERNAME;
+    const redisPassword = process.env.TIMEWEB_REDIS_PASSWORD;
     
     // Валидируем порт
     let redisPort = 6379; // Значение по умолчанию
-    if (process.env.UPSTASH_REDIS_PORT) {
-      const parsedPort = parseInt(process.env.UPSTASH_REDIS_PORT, 10);
+    if (process.env.TIMEWEB_REDIS_PORT) {
+      const parsedPort = parseInt(process.env.TIMEWEB_REDIS_PORT, 10);
       if (!isNaN(parsedPort) && parsedPort > 0 && parsedPort <= 65535) {
         redisPort = parsedPort;
       } else {
-        logger.warn('Invalid UPSTASH_REDIS_PORT, falling back to 6379', { 
-          providedPort: process.env.UPSTASH_REDIS_PORT 
+        logger.warn('Invalid TIMEWEB_REDIS_PORT, falling back to 6379', { 
+          providedPort: process.env.TIMEWEB_REDIS_PORT 
         });
       }
     }
@@ -25,22 +35,23 @@ function getRedisInstance(): Redis {
     logger.debug('Creating Redis instance with config', {
       host: redisHost,
       port: redisPort,
-      token: redisToken ? '[SET]' : '[NOT SET]'
+      username: redisUsername ? '[SET]' : '[NOT SET]',
+      password: redisPassword ? '[SET]' : '[NOT SET]'
     });
 
-    if (!redisHost || !redisToken) {
+    if (!redisHost || !redisPassword) {
       logger.error('Missing required Redis configuration', {
         host: redisHost ? '[SET]' : '[NOT SET]',
-        token: redisToken ? '[SET]' : '[NOT SET]'
+        password: redisPassword ? '[SET]' : '[NOT SET]'
       });
-      throw new Error('UPSTASH_REDIS_HOST and UPSTASH_REDIS_TOKEN must be set for Redis functionality');
+      throw new Error('TIMEWEB_REDIS_HOST and TIMEWEB_REDIS_PASSWORD must be set for Redis functionality');
     }
 
     redisInstance = new Redis({
       host: redisHost,
       port: redisPort,
-      password: redisToken,
-      tls: { rejectUnauthorized: true },
+      username: redisUsername,
+      password: redisPassword,
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
       lazyConnect: true,

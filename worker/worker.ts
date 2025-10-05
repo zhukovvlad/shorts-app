@@ -2,7 +2,7 @@ import Redis from "ioredis";
 import { Worker, Job } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
 import { prisma } from "@/app/lib/db";
-import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep } from "@/lib/redis";
+import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
 
 // Функция для определения, стоит ли делать ретрай
 function isRetryableError(error: unknown): boolean {
@@ -29,17 +29,22 @@ function isRetryableError(error: unknown): boolean {
 
 // Логируем переменные окружения для отладки
 console.log('Environment variables check:');
-console.log('UPSTASH_REDIS_HOST:', process.env.UPSTASH_REDIS_HOST);
-console.log('UPSTASH_REDIS_PORT:', process.env.UPSTASH_REDIS_PORT);
-console.log('UPSTASH_REDIS_TOKEN:', process.env.UPSTASH_REDIS_TOKEN ? '[SET]' : '[NOT SET]');
+console.log('TIMEWEB_REDIS_HOST:', process.env.TIMEWEB_REDIS_HOST);
+console.log('TIMEWEB_REDIS_PORT:', process.env.TIMEWEB_REDIS_PORT);
+console.log('TIMEWEB_REDIS_USERNAME:', process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]');
+console.log('TIMEWEB_REDIS_PASSWORD:', process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]');
 
 const connection = new Redis({
-    host: process.env.UPSTASH_REDIS_HOST,
-    port: process.env.UPSTASH_REDIS_PORT ? parseInt(process.env.UPSTASH_REDIS_PORT) : 6379,
-    password: process.env.UPSTASH_REDIS_TOKEN || undefined,
-    tls: {},
+    host: process.env.TIMEWEB_REDIS_HOST,
+    port: process.env.TIMEWEB_REDIS_PORT ? parseInt(process.env.TIMEWEB_REDIS_PORT) : 6379,
+    username: process.env.TIMEWEB_REDIS_USERNAME || undefined,
+    password: process.env.TIMEWEB_REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: null,
 })
+
+// ✅ ВАЖНО: Переиспользуем это соединение для всех Redis операций
+// Это предотвращает создание множественных подключений к Redis
+setRedisInstance(connection);
 
 // Добавляем обработку ошибок для воркера
 connection.on('error', (err) => {
@@ -212,3 +217,24 @@ testRedisConnection().then(success => {
     console.warn('Redis progress tracking is unavailable, but worker will continue');
   }
 });
+
+// Graceful shutdown - закрываем соединения при завершении процесса
+const gracefulShutdown = async (signal: string) => {
+  console.log(`\n${signal} received, closing worker gracefully...`);
+  
+  try {
+    await worker.close();
+    console.log('Worker closed successfully');
+    
+    await connection.quit();
+    console.log('Redis connection closed successfully');
+    
+    process.exit(0);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

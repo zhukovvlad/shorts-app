@@ -59,7 +59,13 @@ const CreateProject = ({
   const [error, setError] = useState<string | null>(null);
   const [showExamples, setShowExamples] = useState(false);
   const [videoId, setVideoId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const { progress } = useVideoProgress(videoId);
+
+  // Защита от hydration mismatch для Radix UI компонентов
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSelectPrompt = (selectedPrompt: string) => {
     setPrompt(selectedPrompt);
@@ -107,32 +113,36 @@ const CreateProject = ({
               <label className="text-sm font-medium text-gray-300 mb-2 block">
                 Модель генерации изображений
               </label>
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
-                <SelectTrigger className="w-full bg-black/50 border-gray-700 text-white">
-                  <SelectValue placeholder="Выберите модель" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-900 border-gray-700">
-                  {IMAGE_MODELS.map((model) => (
-                    <SelectItem
-                      key={model.id}
-                      value={model.id}
-                      className="text-white hover:bg-gray-800 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{model.name}</span>
-                        {model.isPro && (
-                          <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
-                            PRO
-                          </Badge>
-                        )}
-                        <span className="text-xs text-gray-400">
-                          ({model.speed} • {model.quality})
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {mounted ? (
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="w-full bg-black/50 border-gray-700 text-white">
+                    <SelectValue placeholder="Выберите модель" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-gray-700">
+                    {IMAGE_MODELS.map((model) => (
+                      <SelectItem
+                        key={model.id}
+                        value={model.id}
+                        className="text-white hover:bg-gray-800 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span>{model.name}</span>
+                          {model.isPro && (
+                            <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
+                              PRO
+                            </Badge>
+                          )}
+                          <span className="text-xs text-gray-400">
+                            ({model.speed} • {model.quality})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="w-full h-10 bg-black/50 border border-gray-700 rounded-md animate-pulse" />
+              )}
               <div className="mt-2 flex items-start gap-2 text-xs text-gray-400">
                 {getQualityIcon(selectedModelInfo.quality)}
                 <span>{selectedModelInfo.description}</span>

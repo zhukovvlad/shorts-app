@@ -2,10 +2,10 @@
 const Redis = require('ioredis');
 
 const redis = new Redis({
-    host: process.env.UPSTASH_REDIS_HOST,
-    port: process.env.UPSTASH_REDIS_PORT ? parseInt(process.env.UPSTASH_REDIS_PORT) : 6379,
-    password: process.env.UPSTASH_REDIS_TOKEN || undefined,
-    tls: {},
+    host: process.env.TIMEWEB_REDIS_HOST,
+    port: process.env.TIMEWEB_REDIS_PORT ? parseInt(process.env.TIMEWEB_REDIS_PORT) : 6379,
+    username: process.env.TIMEWEB_REDIS_USERNAME || undefined,
+    password: process.env.TIMEWEB_REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: null,
 });
 
