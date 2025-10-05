@@ -10,7 +10,7 @@ export const userCredits = async (userIdFromCaller?: string | null): Promise<num
   try {
     const resolvedUserId = userIdFromCaller ?? (await currentUser())?.id;
     if (!resolvedUserId) {
-      console.warn(
+      logger.warn(
         "Попытка получить кредиты для неаутентифицированного пользователя"
       );
       return 0;

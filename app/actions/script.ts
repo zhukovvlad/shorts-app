@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "@/lib/logger";
 
 interface ScriptContent {
   imagePrompt: string;
@@ -118,7 +119,9 @@ export const generateScript = async (topic: string): Promise<string> => {
 
     return content;
   } catch (error) {
-    console.error("Error generating script:", error);
+    logger.error("Error generating script", {
+      error: error instanceof Error ? error.message : String(error)
+    });
 
     if (error instanceof Error) {
       throw error;

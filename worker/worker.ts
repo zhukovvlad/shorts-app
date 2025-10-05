@@ -4,6 +4,7 @@ import { processVideo } from "@/app/actions/processes";
 import { prisma } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
 import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
+import { workerLogger as logger } from "@/lib/logger";
 
 // Функция для определения, стоит ли делать ретрай
 function isRetryableError(error: unknown): boolean {
@@ -29,11 +30,12 @@ function isRetryableError(error: unknown): boolean {
 }
 
 // Логируем переменные окружения для отладки
-console.log('Environment variables check:');
-console.log('TIMEWEB_REDIS_HOST:', process.env.TIMEWEB_REDIS_HOST);
-console.log('TIMEWEB_REDIS_PORT:', process.env.TIMEWEB_REDIS_PORT);
-console.log('TIMEWEB_REDIS_USERNAME:', process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]');
-console.log('TIMEWEB_REDIS_PASSWORD:', process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]');
+logger.debug('Worker environment variables check', {
+  host: process.env.TIMEWEB_REDIS_HOST ? '[SET]' : '[NOT SET]',
+  port: process.env.TIMEWEB_REDIS_PORT ? '[SET]' : '[NOT SET]',
+  username: process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]',
+  password: process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]'
+});
 
 // Валидируем конфигурацию Redis при старте
 validateRedisConfig();
@@ -46,11 +48,11 @@ setRedisInstance(connection);
 
 // Добавляем обработку ошибок для воркера
 connection.on('error', (err) => {
-    console.error('Worker Redis connection error:', err);
+    logger.error('Worker Redis connection error', { error: err.message });
 });
 
 connection.on('connect', () => {
-    console.log('Worker Redis connected successfully');
+    logger.info('Worker Redis connected successfully');
 });
 
 const worker = new Worker('video-processing', async (job: Job) => {
@@ -61,8 +63,9 @@ const worker = new Worker('video-processing', async (job: Job) => {
     const nextStep = getNextStep(checkpoint);
     
     if (checkpoint) {
-        console.log(`🔄 Resuming job for videoId: ${videoId} from step: ${nextStep}`);
-        console.log(`📊 Checkpoint state:`, {
+        logger.info('Resuming job from checkpoint', {
+            videoId,
+            nextStep,
             completed: Object.entries(checkpoint.completedSteps)
                 .filter(([_, completed]) => completed)
                 .map(([step, _]) => step),
@@ -71,11 +74,14 @@ const worker = new Worker('video-processing', async (job: Job) => {
         });
         
         if (checkpoint.lastFailedStep) {
-            console.log(`⚠️ Previous failure detected at step: ${checkpoint.lastFailedStep}`);
-            console.log(`✅ Skipping already completed steps, resuming from: ${nextStep}`);
+            logger.warn('Previous failure detected, resuming from checkpoint', {
+                videoId,
+                lastFailedStep: checkpoint.lastFailedStep,
+                resumingFrom: nextStep
+            });
         }
     } else {
-        console.log(`🆕 Starting new job for videoId: ${videoId}`);
+        logger.info('Starting new job', { videoId });
     }
 
     // Получаем userId из базы данных
@@ -95,7 +101,12 @@ const worker = new Worker('video-processing', async (job: Job) => {
     // Если это повторная попытка, уведомляем пользователя
     if (attemptsMade > 0) {
         const stepToRetry = nextStep !== 'completed' ? nextStep : (checkpoint?.lastFailedStep || 'unknown');
-        console.log(`🔄 Retry attempt ${attemptsMade} for videoId: ${videoId}, step: ${stepToRetry}`);
+        logger.info('Retry attempt', {
+            videoId,
+            attemptsMade,
+            maxAttempts,
+            stepToRetry
+        });
         
         await setVideoProgress(videoId, {
             status: 'retrying',
@@ -106,7 +117,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
             currentStepId: stepToRetry, // Добавляем точную информацию о шаге
             timestamp: Date.now(),
             userId: video.userId
-        }).catch(err => console.warn('Redis retry notification failed:', err));
+        }).catch(err => logger.warn('Redis retry notification failed', { error: err.message }));
 
         // Добавляем небольшую задержку перед повторной попыткой
         await new Promise(resolve => setTimeout(resolve, 2000 * attemptsMade));
@@ -120,19 +131,22 @@ const worker = new Worker('video-processing', async (job: Job) => {
             status: 'completed',
             timestamp: Date.now(),
             userId: video.userId
-        }).catch(err => console.warn('Redis progress update failed:', err));
+        }).catch(err => logger.warn('Redis progress update failed', { error: err.message }));
 
         // Удаляем прогресс через 30 секунд - ЗАКОММЕНТИРОВАНО для экономии Redis запросов
         // TTL автоматически удалит через 1 час (VIDEO_PROGRESS_TTL)
         // setTimeout(() => {
         //     deleteVideoProgress(videoId).catch(err => 
-        //         console.warn('Redis progress cleanup failed:', err)
+        //         logger.warn('Redis progress cleanup failed', { error: err.message })
         //     );
         // }, 30000);
 
-        console.log(`Completed processing for videoId: ${videoId}`);
+        logger.info('Completed processing', { videoId });
     } catch (error) {
-        console.error(`❌ Error processing videoId ${videoId}:`, error);
+        logger.error('Error processing video', {
+            videoId,
+            error: error instanceof Error ? error.message : String(error)
+        });
 
         // Получаем checkpoint для определения проблемного шага
         const checkpoint = await getVideoCheckpoint(videoId);
@@ -143,9 +157,17 @@ const worker = new Worker('video-processing', async (job: Job) => {
         const shouldRetry = attemptNumber < maxAttempts && isRetryableError(error);
         
         if (shouldRetry) {
-            console.log(`🔄 Will retry from step: ${failedStep} (attempt ${attemptNumber}/${maxAttempts})`);
+            logger.info('Will retry from step', {
+                videoId,
+                failedStep,
+                attemptNumber,
+                maxAttempts
+            });
         } else {
-            console.log(`🛑 Final failure at step: ${failedStep} (no more retries)`);
+            logger.warn('Final failure, no more retries', {
+                videoId,
+                failedStep
+            });
         }
         
         // Используем уже полученный video из области видимости выше
@@ -171,7 +193,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
                 lastError: errorMessage,
                 timestamp: Date.now(),
                 userId: video.userId
-            }).catch(err => console.warn('Redis error update failed:', err));
+            }).catch(err => logger.warn('Redis error update failed', { error: err.message }));
         }
 
         // Обновляем БД только если это финальная ошибка
@@ -193,43 +215,50 @@ const worker = new Worker('video-processing', async (job: Job) => {
 });
 
 worker.on('completed', (job) => {
-    console.log(`Job with videoId ${job?.id} has been completed`);
+    logger.info('Job completed', { jobId: job?.id });
 })
 
 worker.on('failed', (job, err) => {
-    console.log(`Job with videoId ${job?.id} has failed with error: ${err.message}`);
+    logger.error('Job failed', {
+        jobId: job?.id,
+        error: err.message
+    });
 })
 
 worker.on('error', (err) => {
-    console.log('Worker error:', err);
+    logger.error('Worker error', {
+        error: err instanceof Error ? err.message : String(err)
+    });
 })
 
-console.log('Worker started, waiting for jobs - version 2')
-console.log('Connected to redis')
+logger.info('Worker started, waiting for jobs', { version: '2' });
+logger.info('Connected to Redis');
 
 // Тестируем подключение к Redis при старте
 testRedisConnection().then(success => {
   if (success) {
-    console.log('Redis progress tracking is ready');
+    logger.info('Redis progress tracking is ready');
   } else {
-    console.warn('Redis progress tracking is unavailable, but worker will continue');
+    logger.warn('Redis progress tracking is unavailable, but worker will continue');
   }
 });
 
 // Graceful shutdown - закрываем соединения при завершении процесса
 const gracefulShutdown = async (signal: string) => {
-  console.log(`\n${signal} received, closing worker gracefully...`);
+  logger.info('Graceful shutdown initiated', { signal });
   
   try {
     await worker.close();
-    console.log('Worker closed successfully');
+    logger.info('Worker closed successfully');
     
     await connection.quit();
-    console.log('Redis connection closed successfully');
+    logger.info('Redis connection closed successfully');
     
     process.exit(0);
   } catch (error) {
-    console.error('Error during graceful shutdown:', error);
+    logger.error('Error during graceful shutdown', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     process.exit(1);
   }
 };

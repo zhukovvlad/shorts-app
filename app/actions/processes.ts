@@ -7,6 +7,7 @@ import { generateImages } from "./image";
 import { renderVideo } from "./render";
 import { generateScript } from "./script";
 import { setVideoProgress, getVideoCheckpoint, markStepCompleted, markStepFailed, getNextStep, deleteVideoCheckpoint } from "@/lib/redis";
+import { logger } from "@/lib/logger";
 
 export const processVideo = async (videoId: string, userId: string) => {
   try {
@@ -14,11 +15,11 @@ export const processVideo = async (videoId: string, userId: string) => {
     let checkpoint = await getVideoCheckpoint(videoId);
     let localNextStep = getNextStep(checkpoint);
     
-    console.log(`🔄 Processing video ${videoId}, starting from step: ${localNextStep}`);
+    logger.info(`🔄 Processing video ${videoId}, starting from step: ${localNextStep}`);
     if (checkpoint?.lastFailedStep) {
-      console.log(`⚠️ Previous failure at step: ${checkpoint.lastFailedStep}`);
+      logger.info(`⚠️ Previous failure at step: ${checkpoint.lastFailedStep}`);
     } else if (!checkpoint) {
-      console.log(`📝 No checkpoint found, running full pipeline from beginning`);
+      logger.info(`📝 No checkpoint found, running full pipeline from beginning`);
     }
 
     // Определяем последовательность шагов
@@ -26,7 +27,7 @@ export const processVideo = async (videoId: string, userId: string) => {
     const startIndex = allSteps.indexOf(localNextStep);
     const stepsToExecute = allSteps.slice(startIndex);
 
-    console.log(`📋 Steps to execute: ${stepsToExecute.join(' → ')}`);
+    logger.info(`📋 Steps to execute: ${stepsToExecute.join(' → ')}`);
 
     // Выполняем шаги последовательно
     for (const step of stepsToExecute) {
@@ -35,16 +36,18 @@ export const processVideo = async (videoId: string, userId: string) => {
         try {
           const currentCheckpoint = await getVideoCheckpoint(videoId);
           if (currentCheckpoint && getNextStep(currentCheckpoint) !== step) {
-            console.log(`⏭️ Skipping ${step} - already completed according to checkpoint`);
+            logger.info(`⏭️ Skipping ${step} - already completed according to checkpoint`);
             continue;
           }
         } catch (error) {
-          console.warn(`⚠️ Failed to read checkpoint, continuing with local state:`, error);
+          logger.warn('Failed to read checkpoint, continuing with local state', {
+            error: error instanceof Error ? error.message : String(error)
+          });
           // Продолжаем с локальным состоянием
         }
       }
 
-      console.log(`🔧 Executing step: ${step}`);
+      logger.info(`🔧 Executing step: ${step}`);
 
       switch (step) {
         case 'script':
@@ -53,7 +56,7 @@ export const processVideo = async (videoId: string, userId: string) => {
             step: 'Генерация сценария...',
             timestamp: Date.now(),
             userId
-          }).catch(err => console.warn('Redis progress update failed:', err));
+          }).catch(err => logger.warn('Redis progress update failed:', err));
 
           const prompt = await findPromptInternal(videoId, userId);
           const script = await generateScript(prompt || "");
@@ -66,8 +69,10 @@ export const processVideo = async (videoId: string, userId: string) => {
             (item: { imagePrompt: string }) => item.imagePrompt
           );
 
-          console.log("Generated Script Content Texts:", fullContent);
-          console.log("Generated Image Prompts:", imagePrompts);
+          logger.debug("Generated script content", {
+            contentLength: fullContent.length,
+            imagePromptsCount: imagePrompts.length
+          });
 
           await prisma.video.update({
             where: { videoId },
@@ -78,9 +83,9 @@ export const processVideo = async (videoId: string, userId: string) => {
           });
 
           await markStepCompleted(videoId, userId, 'script').catch(err => 
-            console.warn('Failed to mark script step as completed:', err)
+            logger.warn('Failed to mark script step as completed:', err)
           );
-          console.log("✅ Script generation completed");
+          logger.info("✅ Script generation completed");
           break;
 
         case 'images':
@@ -89,13 +94,13 @@ export const processVideo = async (videoId: string, userId: string) => {
             step: 'Создание изображений...',
             timestamp: Date.now(),
             userId
-          }).catch(err => console.warn('Redis progress update failed:', err));
+          }).catch(err => logger.warn('Redis progress update failed:', err));
 
           await generateImages(videoId);
           await markStepCompleted(videoId, userId, 'images').catch(err => 
-            console.warn('Failed to mark images step as completed:', err)
+            logger.warn('Failed to mark images step as completed:', err)
           );
-          console.log("✅ Images generation completed");
+          logger.info("✅ Images generation completed");
           break;
 
         case 'audio':
@@ -104,13 +109,13 @@ export const processVideo = async (videoId: string, userId: string) => {
             step: 'Синтез речи...',
             timestamp: Date.now(),
             userId
-          }).catch(err => console.warn('Redis progress update failed:', err));
+          }).catch(err => logger.warn('Redis progress update failed:', err));
           
           await generateAudio(videoId);
           await markStepCompleted(videoId, userId, 'audio').catch(err => 
-            console.warn('Failed to mark audio step as completed:', err)
+            logger.warn('Failed to mark audio step as completed:', err)
           );
-          console.log("✅ Audio generation completed");
+          logger.info("✅ Audio generation completed");
           break;
 
         case 'captions':
@@ -119,13 +124,13 @@ export const processVideo = async (videoId: string, userId: string) => {
             step: 'Генерация субтитров...',
             timestamp: Date.now(),
             userId
-          }).catch(err => console.warn('Redis progress update failed:', err));
+          }).catch(err => logger.warn('Redis progress update failed:', err));
           
           await generateCaptions(videoId);
           await markStepCompleted(videoId, userId, 'captions').catch(err => 
-            console.warn('Failed to mark captions step as completed:', err)
+            logger.warn('Failed to mark captions step as completed:', err)
           );
-          console.log("✅ Captions generation completed");
+          logger.info("✅ Captions generation completed");
           break;
 
         case 'render':
@@ -137,25 +142,28 @@ export const processVideo = async (videoId: string, userId: string) => {
             step: 'Рендеринг видео...',
             timestamp: Date.now(),
             userId
-          }).catch(err => console.warn('Redis progress update failed:', err));
+          }).catch(err => logger.warn('Redis progress update failed:', err));
 
           await renderVideo(videoId);
           await markStepCompleted(videoId, userId, 'render').catch(err => 
-            console.warn('Failed to mark render step as completed:', err)
+            logger.warn('Failed to mark render step as completed:', err)
           );
-          console.log("✅ Video rendering completed");
+          logger.info("✅ Video rendering completed");
           break;
       }
     }
 
     // Все шаги завершены - очищаем checkpoint
     await deleteVideoCheckpoint(videoId).catch(err => 
-      console.warn('Failed to clear checkpoint:', err)
+      logger.warn('Failed to clear checkpoint:', err)
     );
-    console.log("🎉 All steps completed, checkpoint cleared");
+    logger.info("🎉 All steps completed, checkpoint cleared");
 
   } catch (error) {
-    console.error("Error processing video:", error);
+    logger.error("Error processing video", {
+      videoId,
+      error: error instanceof Error ? error.message : String(error)
+    });
     
     // При ошибке пытаемся определить на каком шаге произошла ошибка
     // Используем локальную логику если checkpoint недоступен
@@ -164,7 +172,7 @@ export const processVideo = async (videoId: string, userId: string) => {
       const checkpoint = await getVideoCheckpoint(videoId);
       failedStep = getNextStep(checkpoint);
     } catch (checkpointError) {
-      console.warn('Failed to read checkpoint for error handling, using fallback logic');
+      logger.warn('Failed to read checkpoint for error handling, using fallback logic');
       // Определяем шаг по тексту ошибки как fallback
       const errorMessage = error instanceof Error ? error.message : '';
       if (errorMessage.includes('script') || errorMessage.includes('openai')) {
@@ -181,7 +189,7 @@ export const processVideo = async (videoId: string, userId: string) => {
     }
     
     await markStepFailed(videoId, userId, failedStep).catch(err => 
-      console.warn('Failed to mark step as failed:', err)
+      logger.warn('Failed to mark step as failed:', err)
     );
     
     // Определяем причину ошибки для более понятного сообщения
@@ -205,7 +213,7 @@ export const processVideo = async (videoId: string, userId: string) => {
       lastError: error instanceof Error ? error.message : 'Unknown error',
       timestamp: Date.now(),
       userId
-    }).catch(err => console.warn('Redis error update failed:', err));
+    }).catch(err => logger.warn('Redis error update failed:', err));
     
     throw error;
   }

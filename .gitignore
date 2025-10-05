@@ -47,3 +47,8 @@ next-env.d.ts
 
 # vscode settings
 .vscode/*
+
+# logs
+logs/
+*.log
+*.log.gz

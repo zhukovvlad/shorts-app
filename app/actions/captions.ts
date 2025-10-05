@@ -1,5 +1,6 @@
 import { AssemblyAI } from "assemblyai";
 import { prisma } from "../lib/db";
+import { logger } from "@/lib/logger";
 
 const apiKey = process.env.ASSEMBLYAI_API_KEY;
 const FRAME_RATE = 30;
@@ -62,7 +63,9 @@ export const generateCaptions = async (
 
     return captions;
   } catch (error) {
-    console.error("Error generating captions:", error);
+    logger.error("Error generating captions", {
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 };

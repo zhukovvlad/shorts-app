@@ -3,6 +3,7 @@ import Replicate from "replicate";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { getModelById, getDefaultModel } from "@/lib/imageModels";
+import { logger } from "@/lib/logger";
 
 interface ReplicateOutput {
   url: () => URL;
@@ -43,11 +44,11 @@ const processImage = async (img: string, modelId?: string) => {
     // Получаем конфигурацию модели
     const modelConfig = modelId ? getModelById(modelId) : getDefaultModel();
     if (!modelConfig) {
-      console.warn(`Model ${modelId} not found, using default model`);
+      logger.warn(`Model ${modelId} not found, using default model`);
     }
     const model = modelConfig || getDefaultModel();
 
-    console.log(`Processing image with model: ${model.name} (${model.id})`);
+    logger.info(`Processing image with model: ${model.name} (${model.id})`);
 
     // Формируем параметры для модели
     const input = {
@@ -59,7 +60,11 @@ const processImage = async (img: string, modelId?: string) => {
       input,
     });
 
-    console.log(`Output type from ${model.name}:`, typeof output, Array.isArray(output) ? '(array)' : '');
+    logger.info('Output type from model', {
+      modelName: model.name,
+      outputType: typeof output,
+      isArray: Array.isArray(output)
+    });
 
     // Функция для извлечения URL из различных форматов
     const extractUrlFromValue = (value: any): string | null => {
@@ -118,36 +123,42 @@ const processImage = async (img: string, modelId?: string) => {
     if (Array.isArray(output)) {
       // Проверяем на пустой массив
       if (output.length === 0) {
-        console.error(`Model ${model.name} returned empty array`);
+        logger.error(`Model ${model.name} returned empty array`);
         throw new Error(`Model ${model.name} returned empty array - no images generated`);
       }
       
       // Извлекаем URL из первого элемента массива
       imageUrl = extractUrlFromValue(output[0]);
       if (imageUrl) {
-        console.log(`Model returned array format, extracted URL: ${imageUrl}`);
+        logger.info(`Model returned array format, extracted URL: ${imageUrl}`);
       }
     } else if (typeof output === 'string') {
       // Некоторые модели возвращают строку напрямую
       imageUrl = output;
-      console.log(`Model returned string format: ${imageUrl}`);
+      logger.info(`Model returned string format: ${imageUrl}`);
     } else if (output && typeof output === 'object') {
       // Извлекаем URL из объекта
       imageUrl = extractUrlFromValue(output);
       if (imageUrl) {
-        console.log(`Model returned object format, extracted URL: ${imageUrl}`);
+        logger.info(`Model returned object format, extracted URL: ${imageUrl}`);
       }
     }
 
     // Финальная проверка - удалось ли извлечь URL
     if (!imageUrl || typeof imageUrl !== 'string') {
-      console.error(`Failed to extract valid URL from model ${model.name} output:`, JSON.stringify(output, null, 2));
+      logger.error('Failed to extract valid URL from model output', {
+        modelName: model.name,
+        output: JSON.stringify(output, null, 2)
+      });
       throw new Error(`Could not extract valid image URL from model ${model.name}. Output type: ${typeof output}, isArray: ${Array.isArray(output)}`);
     }
 
     // Дополнительная проверка что это похоже на URL
     if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
-      console.error(`Extracted value is not a valid URL from model ${model.name}:`, imageUrl);
+      logger.error('Extracted value is not a valid URL', {
+        modelName: model.name,
+        extractedValue: imageUrl
+      });
       throw new Error(`Invalid URL format from model ${model.name}: ${imageUrl}`);
     }
 
@@ -157,7 +168,12 @@ const processImage = async (img: string, modelId?: string) => {
     // Проверяем успешность запроса
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error(`Failed to fetch image from ${imageUrl}: ${response.status} ${response.statusText}`, errorText);
+      logger.error('Failed to fetch image from URL', {
+        imageUrl,
+        status: response.status,
+        statusText: response.statusText,
+        errorText
+      });
       throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
     }
 
@@ -167,12 +183,12 @@ const processImage = async (img: string, modelId?: string) => {
 
     // Определяем Content-Type из заголовков ответа
     const contentType = response.headers.get('content-type') || 'image/png';
-    console.log(`Image content-type: ${contentType}`);
+    logger.info(`Image content-type: ${contentType}`);
 
     // Определяем расширение файла на основе Content-Type
     const extension = getFileExtensionFromContentType(contentType);
     if (extension === 'png' && contentType !== 'image/png') {
-      console.warn(`Unknown content-type: ${contentType}, defaulting to png`);
+      logger.warn(`Unknown content-type: ${contentType}, defaulting to png`);
     }
 
     // Генерируем имя файла с правильным расширением
@@ -187,10 +203,12 @@ const processImage = async (img: string, modelId?: string) => {
 
     await s3Client.send(command);
     const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-    console.log(`Successfully uploaded image to S3: ${fileName} (${contentType})`);
+    logger.info("Image uploaded to S3", { fileName, contentType });
     return s3Url;
   } catch (error) {
-    console.log("Error processing image from replicate:", error);
+    logger.error("Error processing image from replicate", {
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 };
@@ -212,23 +230,29 @@ export const generateImages = async (videoId: string) => {
       const metadata = await getVideoMetadata(videoId);
       modelId = metadata?.imageModel;
       if (modelId) {
-        console.log(`Using imageModel from metadata: ${modelId}`);
+        logger.info(`Using imageModel from metadata: ${modelId}`);
       }
     } catch (redisError) {
-      console.warn('Failed to get imageModel from Redis, will use default:', redisError);
+      logger.warn('Failed to get imageModel from Redis, will use default', {
+        error: redisError instanceof Error ? redisError.message : String(redisError)
+      });
     }
 
     const imagePromises = video.imagePrompts.map((img) => processImage(img, modelId));
 
     const imageLinks = await Promise.all(imagePromises);
-    console.log("Generated image links:", imageLinks);
+    logger.info("Generated image links", {
+      count: imageLinks.length
+    });
 
     await prisma.video.update({
       where: { videoId },
       data: { imageLinks: imageLinks, thumbnail: imageLinks[0] },
     });
   } catch (error) {
-    console.log("Error generating images:", error);
+    logger.error("Error generating images", {
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 };
