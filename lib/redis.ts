@@ -130,18 +130,26 @@ const sanitizeError = (error: string | undefined): string | undefined => {
   return sanitized;
 };
 
+/**
+ * Санитизирует error-related поля в VideoProgress объекте
+ * Применяет sanitizeError ко всем полям, которые могут содержать чувствительную информацию
+ */
+const sanitizeProgressErrors = (progress: VideoProgress): VideoProgress => {
+  return {
+    ...progress,
+    error: sanitizeError(progress.error),
+    lastError: sanitizeError(progress.lastError),
+    retryReason: sanitizeError(progress.retryReason)
+  };
+};
+
 export const setVideoProgress = async (videoId: string, progress: VideoProgress) => {
   try {
     const redis = getRedisInstance();
     const key = `${VIDEO_PROGRESS_PREFIX}${videoId}`;
     
     // Санитизируем ошибки перед сохранением в Redis
-    const sanitizedProgress: VideoProgress = {
-      ...progress,
-      error: sanitizeError(progress.error),
-      lastError: sanitizeError(progress.lastError),
-      retryReason: sanitizeError(progress.retryReason)
-    };
+    const sanitizedProgress = sanitizeProgressErrors(progress);
     
     await redis.setex(key, VIDEO_PROGRESS_TTL, JSON.stringify(sanitizedProgress));
   } catch (error) {
@@ -347,13 +355,7 @@ export const updateVideoProgressAndCheckpoint = async (
       timestamp: Date.now()
     };
     
-    // Санитизируем ошибки перед сохранением в Redis
-    const sanitizedProgress: VideoProgress = {
-      ...fullProgress,
-      error: sanitizeError(fullProgress.error),
-      lastError: sanitizeError(fullProgress.lastError),
-      retryReason: sanitizeError(fullProgress.retryReason)
-    };
+    const sanitizedProgress = sanitizeProgressErrors(fullProgress);
     
     pipeline.setex(
       `${VIDEO_PROGRESS_PREFIX}${videoId}`,
