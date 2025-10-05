@@ -3,6 +3,7 @@ import { Worker, Job } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
 import { prisma } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
+import { createRedisConfig } from "@/lib/redis-config";
 
 // Функция для определения, стоит ли делать ретрай
 function isRetryableError(error: unknown): boolean {
@@ -34,13 +35,7 @@ console.log('TIMEWEB_REDIS_PORT:', process.env.TIMEWEB_REDIS_PORT);
 console.log('TIMEWEB_REDIS_USERNAME:', process.env.TIMEWEB_REDIS_USERNAME ? '[SET]' : '[NOT SET]');
 console.log('TIMEWEB_REDIS_PASSWORD:', process.env.TIMEWEB_REDIS_PASSWORD ? '[SET]' : '[NOT SET]');
 
-const connection = new Redis({
-    host: process.env.TIMEWEB_REDIS_HOST,
-    port: process.env.TIMEWEB_REDIS_PORT ? parseInt(process.env.TIMEWEB_REDIS_PORT) : 6379,
-    username: process.env.TIMEWEB_REDIS_USERNAME || undefined,
-    password: process.env.TIMEWEB_REDIS_PASSWORD || undefined,
-    maxRetriesPerRequest: null,
-})
+const connection = new Redis(createRedisConfig())
 
 // ✅ ВАЖНО: Переиспользуем это соединение для всех Redis операций
 // Это предотвращает создание множественных подключений к Redis
