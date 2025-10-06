@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
+import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { Plus, Video } from "lucide-react";
 import TooltipCredits from "@/app/components/creditsButton";
@@ -12,7 +12,7 @@ type NavigationProps = {
 }
 
 const Navigation = ({ credits }: NavigationProps) => {
-  const { user, isLoaded } = useUser();
+  const { data: session, status } = useSession();
   const pathname = usePathname();
 
   // Don't show navigation on auth pages, success, cancel pages
@@ -21,7 +21,7 @@ const Navigation = ({ credits }: NavigationProps) => {
     return null;
   }
 
-  if (!isLoaded) {
+  if (status === "loading") {
     return null;
   }
 
@@ -49,18 +49,20 @@ const Navigation = ({ credits }: NavigationProps) => {
 
       {/* Navigation buttons */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {!user ? (
+        {!session?.user ? (
         <>
-          <SignInButton>
-            <Button className={outlineButtonClass}>
-              Sign In
-            </Button>
-          </SignInButton>
-          <SignUpButton>
-            <Button className={gradientButtonClass}>
-              Sign Up
-            </Button>
-          </SignUpButton>
+          <Button 
+            className={outlineButtonClass}
+            onClick={() => signIn()}
+          >
+            Sign In
+          </Button>
+          <Button 
+            className={gradientButtonClass}
+            onClick={() => signIn()}
+          >
+            Sign Up
+          </Button>
         </>
       ) : (
         <>
@@ -91,11 +93,12 @@ const Navigation = ({ credits }: NavigationProps) => {
             </Button>
           )}
           
-          <SignOutButton>
-            <Button className={outlineButtonClass}>
-              Sign Out
-            </Button>
-          </SignOutButton>
+          <Button 
+            className={outlineButtonClass}
+            onClick={() => signOut({ callbackUrl: "/" })}
+          >
+            Sign Out
+          </Button>
         </>
       )}
       </div>

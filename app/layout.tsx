@@ -1,8 +1,6 @@
 import React from "react";
 import type { Metadata } from "next";
-import {
-  ClerkProvider,
-} from "@clerk/nextjs";
+import { SessionProvider } from "next-auth/react";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -49,9 +47,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en" suppressHydrationWarning>
-        <body className="font-sans antialiased">
+    <html lang="en" suppressHydrationWarning>
+      <body className="font-sans antialiased">
+        <SessionProvider>
           <ThemeProvider
             attribute="class"
             defaultTheme="dark"
@@ -64,8 +62,8 @@ export default function RootLayout({
             {children}
             <Toaster theme="dark" position="top-right" richColors />
           </ThemeProvider>
-        </body>
-      </html>
-    </ClerkProvider>
+        </SessionProvider>
+      </body>
+    </html>
   );
 }
