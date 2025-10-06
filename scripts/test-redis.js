@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { testRedisConnection } from '../lib/redis.js';
+import { testRedisConnection } from '../lib/redis.ts';
 
 console.log('Testing Redis connection...');
 
