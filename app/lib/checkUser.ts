@@ -40,13 +40,18 @@ const checkUser = async (): Promise<string | null> => {
     // Upsert выполняется безусловно, чтобы гарантировать создание записи пользователя,
     // даже если провайдер не вернул email (GitHub с скрытым email, сбои Mail.ru и т.д.)
     
-    // Генерируем безопасный fallback email если провайдер не предоставил email
-    let fallbackEmail: string | undefined;
-    if (!email) {
+    // Вычисляем email для пользователя - либо из провайдера, либо генерируем fallback
+    let userEmail = email;
+    if (!userEmail) {
       // Используем SHA-256 хеш от userId для уникальности и меньшей предсказуемости
       const hash = crypto.createHash('sha256').update(userId).digest('hex').substring(0, 16);
       // Используем noreply поддомен - замените yourdomain.com на ваш контролируемый домен
-      fallbackEmail = `no-email-${hash}@noreply.yourdomain.com`;
+      userEmail = `no-email-${hash}@noreply.yourdomain.com`;
+    }
+    
+    // Дополнительная проверка безопасности (не должно происходить, но делаем явной инвариант)
+    if (!userEmail) {
+      throw new Error('Cannot create user without email: both provider email and fallback are missing');
     }
     
     await withRetry(async () => {
@@ -55,7 +60,7 @@ const checkUser = async (): Promise<string | null> => {
         update: {}, // Обновления не нужны, если пользователь уже существует
         create: {
           id: userId,
-          email: email || fallbackEmail!,
+          email: userEmail,
           name: session.user?.name ?? null,
           image: session.user?.image ?? null,
         },

@@ -51,7 +51,7 @@ cancel_url: 'http://localhost:3000/cancel',
 - [ ] Убедиться, что в Mail.ru OAuth добавлен продакшн callback URI
 
 **Формат продакшн URL:**
-```
+```text
 https://yourdomain.com/api/auth/callback/google
 https://yourdomain.com/api/auth/callback/github
 https://yourdomain.com/api/auth/callback/yandex
@@ -103,9 +103,6 @@ https://yourdomain.com/api/auth/callback/mailru
 ### 6. Улучшить обработку ошибок в middleware
 **Файл:** `middleware.ts`
 
-### 6. Улучшить обработку ошибок в middleware
-**Файл:** `middleware.ts`
-
 **Что можно добавить:**
 - [ ] Логирование неудачных попыток аутентификации
 - [ ] Rate limiting для защиты от брутфорса
@@ -115,7 +112,6 @@ https://yourdomain.com/api/auth/callback/mailru
 
 ---
 
-### 7. Добавить мониторинг и алерты
 ### 7. Добавить мониторинг и алерты
 **Что можно настроить:**
 - [ ] Мониторинг ошибок OAuth аутентификации
@@ -148,6 +144,7 @@ https://yourdomain.com/api/auth/callback/mailru
 - [x] Заменен placeholder email домен на контролируемый с SHA-256 хешем
 - [x] Добавлена обработка edge case в useOAuthSignIn (result без error и url)
 - [x] Созданы константы для сообщений об ошибках (app/constants/errors.ts)
+- [x] Убран non-null assertion в checkUser.ts, сделан явный type-safe подход
 
 ---
 
@@ -174,7 +171,7 @@ npm run lint
 
 ### Контакты и ссылки
 
-- Repository: https://github.com/zhukovvlad/shorts-app
+- Repository: <https://github.com/zhukovvlad/shorts-app>
 - Branch: production/timeweb
 
 ---
