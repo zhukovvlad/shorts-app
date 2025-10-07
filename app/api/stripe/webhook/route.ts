@@ -37,7 +37,7 @@ export async function POST(req: Request) {
         if (userId && creditsToAdd > 0) {
             await prisma.user.update({
                 where: {
-                    userId: userId
+                    id: userId
                 },
                 data: {
                     credits: {
