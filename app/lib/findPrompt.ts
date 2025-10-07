@@ -1,9 +1,10 @@
 import { prisma } from "./db"
 import { logger } from "@/lib/logger"
+import { auth } from "@/auth"
 
 /**
  * Внутренняя функция для получения промпта по videoId и userId
- * Не использует аутентификацию через Clerk - предназначена для использования в воркерах
+ * Не использует аутентификацию - предназначена для использования в воркерах
  */
 export const findPromptInternal = async (videoId: string, userId: string): Promise<string | null> => {
 	if (!videoId?.trim() || !userId?.trim()) {
@@ -28,23 +29,10 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 	}
 }
 
-// Функция для получения currentUser с отложенным импортом
-async function getCurrentUser() {
-	try {
-		// Проверяем, доступен ли @clerk/nextjs/server
-		const { currentUser } = await import("@clerk/nextjs/server");
-		return currentUser;
-	} catch {
-		// Clerk недоступен (например, в воркере)
-		logger.debug('findPrompt: running in worker mode');
-		return null;
-	}
-}
-
 /**
  * Получает промпт для видео по его ID, только если пользователь является владельцем
  * @param videoId - Уникальный идентификатор видео
- * @param userId - ID пользователя (игнорируется в целях безопасности, используется только сессия)
+ * @param userId - ID пользователя (опциональный, для режима воркера)
  * @returns Промпт видео или null если видео не найдено или пользователь не является владельцем
  */
 export const findPrompt = async (videoId: string, userId?: string): Promise<string | null> => {
@@ -55,29 +43,26 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 	}
 
 	try {
-		const currentUser = await getCurrentUser();
+		// Пытаемся получить сессию
+		const session = await auth();
 		
-		// Если Clerk недоступен и передан userId - используем его напрямую (режим воркера)
-		if (!currentUser && userId) {
+		// Если сессии нет и передан userId - используем его напрямую (режим воркера)
+		if (!session?.user?.id && userId) {
+			logger.debug('findPrompt: running in worker mode with provided userId');
 			return await findPromptInternal(videoId, userId);
 		}
 
-		// Обычный режим с аутентификацией через Clerk
-		if (!currentUser) {
+		// Обычный режим с аутентификацией через NextAuth
+		if (!session?.user?.id) {
 			logger.warn('findPrompt: no authentication available');
 			return null;
 		}
 
-		const requestingUserId = (await currentUser())?.id;
+		const requestingUserId = session.user.id;
 		
 		// Если передан userId, но он не совпадает с сессией - логируем это
 		if (userId && userId !== requestingUserId) {
 			logger.warn('findPrompt: attempted access with mismatched userId for video');
-		}
-		
-		if (!requestingUserId) {
-			logger.warn('findPrompt: unauthorized access attempt to video');
-			return null;
 		}
 
 		return await findPromptInternal(videoId, requestingUserId);

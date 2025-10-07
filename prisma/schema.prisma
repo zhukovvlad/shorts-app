@@ -21,9 +21,6 @@ model User {
   accounts      Account[]
   sessions      Session[]
   
-  // Старое поле для совместимости с существующими данными
-  userId        String?   @unique
-  
   @@map("User")
 }
 

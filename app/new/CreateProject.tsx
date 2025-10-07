@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { SignInButton, SignUpButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Cover } from "@/components/ui/cover";
 import { ShineBorder } from "@/components/magicui/shine-border";
@@ -279,16 +279,12 @@ const CreateProject = ({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <SignInButton>
-              <Button className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer">
-                Sign In
-              </Button>
-            </SignInButton>
-            <SignUpButton>
-              <Button className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer">
-                Sign Up
-              </Button>
-            </SignUpButton>
+            <Button asChild className="bg-black border border-gray-400 text-white rounded-full hover:bg-gray-900 transition-colors duration-150 cursor-pointer">
+              <Link href="/sign-in">Sign In</Link>
+            </Button>
+            <Button asChild className="bg-gradient-to-br hover:opacity-80 text-white rounded-full from-[#3352CC] to-[#1C2D70] font-medium cursor-pointer">
+              <Link href="/sign-up">Sign Up</Link>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

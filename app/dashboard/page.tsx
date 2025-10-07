@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import React from "react";
 import { prisma, withRetry } from "../lib/db";
 import { VideoCard } from "../components/videoCard";
@@ -53,11 +53,13 @@ const Dashboard = async ({
 }: {
   searchParams: Promise<{ page?: string }>;
 }) => {
-  const { userId } = await auth();
+  const session = await auth();
 
-  if (!userId) {
+  if (!session?.user?.id) {
     redirect("/sign-in");
   }
+
+  const userId = session.user.id;
 
   const params = await searchParams;
   const currentPage = Number(params.page) || 1;

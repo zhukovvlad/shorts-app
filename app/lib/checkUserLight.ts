@@ -1,31 +1,38 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma } from "./db";
 import { logger } from "@/lib/logger";
 
 /**
- * Облегченная версия checkUser, которая только проверяет существование пользователя в базе данных
- * без получения дополнительных данных из Clerk API.
- * Рекомендуется использовать когда реальный email пользователя не критично важен.
+ * Облегченная версия checkUser, которая только проверяет существование пользователя в базе данных.
+ * Рекомендуется использовать когда дополнительные данные пользователя не требуются.
  * 
  * @returns Promise<string | null> - ID пользователя если аутентифицирован и пользователь существует/создан, иначе null
  */
 const checkUserLight = async (): Promise<string | null> => {
   try {
-    const { userId } = await auth();
+    const session = await auth();
     
-    if (!userId) {
+    if (!session?.user?.id) {
       return null;
     }
 
+    const userId = session.user.id;
+    const email = session.user.email;
+
     // Атомарная операция upsert с минимальными данными
-    await prisma.user.upsert({
-      where: { userId },
-      update: {}, // Обновления не нужны
-      create: {
-        userId,
-        email: `${userId}@placeholder.invalid`, // Используем placeholder для соответствия ограничениям схемы
-      },
-    });
+    // PrismaAdapter должен был создать пользователя, но на всякий случай делаем upsert
+    if (email) {
+      await prisma.user.upsert({
+        where: { id: userId },
+        update: {}, // Обновления не нужны
+        create: {
+          id: userId,
+          email,
+          name: session.user.name,
+          image: session.user.image,
+        },
+      });
+    }
 
     return userId;
   } catch (error) {
