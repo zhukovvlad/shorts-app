@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma, withRetry } from "./db";
 import { logger } from "@/lib/logger";
+import crypto from "crypto";
 
 /**
  * Проверяет существование пользователя в базе данных и возвращает его ID.
@@ -38,13 +39,23 @@ const checkUser = async (): Promise<string | null> => {
     // но на всякий случай делаем upsert
     // Upsert выполняется безусловно, чтобы гарантировать создание записи пользователя,
     // даже если провайдер не вернул email (GitHub с скрытым email, сбои Mail.ru и т.д.)
+    
+    // Генерируем безопасный fallback email если провайдер не предоставил email
+    let fallbackEmail: string | undefined;
+    if (!email) {
+      // Используем SHA-256 хеш от userId для уникальности и меньшей предсказуемости
+      const hash = crypto.createHash('sha256').update(userId).digest('hex').substring(0, 16);
+      // Используем noreply поддомен - замените yourdomain.com на ваш контролируемый домен
+      fallbackEmail = `no-email-${hash}@noreply.yourdomain.com`;
+    }
+    
     await withRetry(async () => {
       return await prisma.user.upsert({
         where: { id: userId },
         update: {}, // Обновления не нужны, если пользователь уже существует
         create: {
           id: userId,
-          email: email || `no-email-${userId}@placeholder.local`,
+          email: email || fallbackEmail!,
           name: session.user?.name ?? null,
           image: session.user?.image ?? null,
         },

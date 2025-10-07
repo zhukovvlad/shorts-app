@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { AUTH_ERRORS } from "@/app/constants/errors";
 
 /**
  * Custom hook for OAuth sign-in functionality.
@@ -28,13 +29,17 @@ export function useOAuthSignIn() {
       });
 
       if (result?.error) {
-        setError("Не удалось войти. Пожалуйста, попробуйте еще раз.");
+        setError(AUTH_ERRORS.SIGN_IN_FAILED);
       } else if (result?.url) {
         // Use client-side navigation to preserve state and avoid full page reload
         router.push(result.url);
+      } else if (result) {
+        // Unexpected: no error and no url
+        console.warn("Sign in returned unexpected result:", result);
+        setError(AUTH_ERRORS.UNEXPECTED_RESULT);
       }
     } catch (err) {
-      setError("Произошла ошибка при входе. Пожалуйста, попробуйте позже.");
+      setError(AUTH_ERRORS.GENERIC_ERROR);
       console.error("Sign in error:", err);
     } finally {
       setIsLoading(null);
