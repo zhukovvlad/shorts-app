@@ -1,39 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chrome, Github, Mail, AlertCircle } from "lucide-react";
+import { useOAuthSignIn } from "@/app/hooks/useOAuthSignIn";
 
 export default function SignInPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<string | null>(null);
-
-  const handleSignIn = async (provider: string) => {
-    try {
-      // Clear any previous errors
-      setError(null);
-      setIsLoading(provider);
-
-      const result = await signIn(provider, { 
-        callbackUrl: "/dashboard",
-        redirect: false 
-      });
-
-      if (result?.error) {
-        setError("Не удалось войти. Пожалуйста, попробуйте еще раз.");
-      } else if (result?.url) {
-        // Redirect manually if successful
-        window.location.href = result.url;
-      }
-    } catch (err) {
-      setError("Произошла ошибка при входе. Пожалуйста, попробуйте позже.");
-      console.error("Sign in error:", err);
-    } finally {
-      setIsLoading(null);
-    }
-  };
+  const { handleSignIn, error, isLoading } = useOAuthSignIn();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">

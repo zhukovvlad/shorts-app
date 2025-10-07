@@ -36,20 +36,20 @@ const checkUser = async (): Promise<string | null> => {
     // Создаем нового пользователя с атомарной операцией upsert
     // Пользователь должен был быть создан через PrismaAdapter при первом входе,
     // но на всякий случай делаем upsert
-    if (email) {
-      await withRetry(async () => {
-        return await prisma.user.upsert({
-          where: { id: userId },
-          update: {}, // Обновления не нужны, если пользователь уже существует
-          create: {
-            id: userId,
-            email,
-            name: session.user.name,
-            image: session.user.image,
-          },
-        });
+    // Upsert выполняется безусловно, чтобы гарантировать создание записи пользователя,
+    // даже если провайдер не вернул email (GitHub с скрытым email, сбои Mail.ru и т.д.)
+    await withRetry(async () => {
+      return await prisma.user.upsert({
+        where: { id: userId },
+        update: {}, // Обновления не нужны, если пользователь уже существует
+        create: {
+          id: userId,
+          email: email || `no-email-${userId}@placeholder.local`,
+          name: session.user?.name ?? null,
+          image: session.user?.image ?? null,
+        },
       });
-    }
+    });
 
     return userId;
   } catch (error) {

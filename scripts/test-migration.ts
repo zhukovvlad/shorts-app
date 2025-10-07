@@ -31,6 +31,7 @@ async function testMigration() {
     
     if (missingTables.length > 0) {
       console.error('❌ Отсутствуют таблицы:', missingTables)
+      await prisma.$disconnect()
       process.exit(1)
     }
     console.log('✅ Все необходимые таблицы существуют\n')
@@ -94,6 +95,7 @@ async function testMigration() {
       )
       if (!found) {
         console.error(`❌ Отсутствует FK: ${expected.table}.${expected.column} → ${expected.refTable}.${expected.refColumn}`)
+        await prisma.$disconnect()
         process.exit(1)
       }
     }
@@ -119,6 +121,7 @@ async function testMigration() {
     })
     if (!foundUser) {
       console.error('❌ Не удалось найти созданного пользователя')
+      await prisma.$disconnect()
       process.exit(1)
     }
     console.log('✅ Чтение User работает')
@@ -130,6 +133,7 @@ async function testMigration() {
     })
     if (updatedUser.credits !== 10) {
       console.error('❌ Обновление не применилось')
+      await prisma.$disconnect()
       process.exit(1)
     }
     console.log('✅ Обновление User работает')
@@ -143,6 +147,7 @@ async function testMigration() {
     })
     if (deletedUser) {
       console.error('❌ Пользователь не удален')
+      await prisma.$disconnect()
       process.exit(1)
     }
     console.log('✅ Удаление User работает\n')
@@ -164,6 +169,7 @@ async function testMigration() {
         }
       })
       console.error('❌ Уникальность email не работает!')
+      await prisma.$disconnect()
       process.exit(1)
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -188,6 +194,7 @@ async function testMigration() {
     
     if (columnNames.includes('userId')) {
       console.error('❌ Старое поле userId все еще существует!')
+      await prisma.$disconnect()
       process.exit(1)
     }
     console.log('✅ Старое поле userId успешно удалено\n')
@@ -207,6 +214,7 @@ async function testMigration() {
 
   } catch (error) {
     console.error('\n❌ ОШИБКА ПРИ ПРОВЕРКЕ:', error)
+    await prisma.$disconnect()
     process.exit(1)
   } finally {
     await prisma.$disconnect()

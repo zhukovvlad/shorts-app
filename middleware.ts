@@ -1,18 +1,21 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import authConfig from "@/auth.config";
 
-// Import NextAuth dynamically to avoid type issues
+// Import NextAuth for Edge Runtime
+// Dynamic import to ensure Edge Runtime compatibility without Prisma adapter
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const NextAuth = require("next-auth").default;
 
-// Create edge-safe auth instance (without Prisma adapter)
-const { auth } = NextAuth({
+// Create Edge-safe auth instance
+// JWT strategy only - no Prisma adapter, no Node-only modules for Edge Runtime compatibility
+export const { auth } = NextAuth({
   session: { strategy: "jwt" },
   ...authConfig,
 });
 
-// Middleware function
-export default auth(async function middleware(req: any) {
+// Middleware function with proper Edge Runtime typing
+export default auth(async function middleware(req: NextRequest & { auth: any }) {
   const isLoggedIn = !!req.auth;
   const isProtectedRoute = req.nextUrl.pathname.startsWith("/dashboard") || 
                           req.nextUrl.pathname.startsWith("/new") ||

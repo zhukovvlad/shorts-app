@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chrome, Github, Mail, AlertCircle } from "lucide-react";
+import { useOAuthSignIn } from "@/app/hooks/useOAuthSignIn";
 
 /**
  * Sign-up page for new users.
@@ -26,33 +25,7 @@ import { Chrome, Github, Mail, AlertCircle } from "lucide-react";
  * 4. Auto sign-in after successful registration
  */
 export default function SignUpPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<string | null>(null);
-
-  const handleSignIn = async (provider: string) => {
-    try {
-      // Clear any previous errors
-      setError(null);
-      setIsLoading(provider);
-
-      const result = await signIn(provider, { 
-        callbackUrl: "/dashboard",
-        redirect: false 
-      });
-
-      if (result?.error) {
-        setError("Не удалось создать аккаунт. Пожалуйста, попробуйте еще раз.");
-      } else if (result?.url) {
-        // Redirect manually if successful
-        window.location.href = result.url;
-      }
-    } catch (err) {
-      setError("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.");
-      console.error("Sign up error:", err);
-    } finally {
-      setIsLoading(null);
-    }
-  };
+  const { handleSignIn, error, isLoading } = useOAuthSignIn();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background to-muted p-4">

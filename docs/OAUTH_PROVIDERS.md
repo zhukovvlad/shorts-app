@@ -82,10 +82,23 @@ Please add the required environment variables to your .env file.
 ### Google OAuth
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing
-3. Enable Google+ API
-4. Go to Credentials → Create Credentials → OAuth 2.0 Client ID
-5. Set authorized redirect URI: `https://yourdomain.com/api/auth/callback/google`
-6. Copy Client ID and Client Secret
+3. **Configure OAuth consent screen:**
+   - Navigate to "APIs & Services" → "OAuth consent screen"
+   - Choose User Type (External for public apps, Internal for Google Workspace)
+   - Fill in required fields (App name, User support email, Developer contact)
+   - Add scopes if needed (email, profile are default)
+   - Save and continue
+4. **Enable Google APIs:**
+   - Navigate to "APIs & Services" → "Library"
+   - Search for and enable "Google People API" (required for user profile data)
+   - You may also need to enable other APIs depending on your requirements
+5. **Create OAuth 2.0 Client ID:**
+   - Navigate to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth 2.0 Client ID"
+   - Choose "Web application" as the application type
+   - Add authorized redirect URI: `https://yourdomain.com/api/auth/callback/google`
+   - Click "Create"
+6. Copy the Client ID and Client Secret from the credentials page
 
 ### GitHub OAuth
 1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
