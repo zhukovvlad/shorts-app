@@ -1,14 +1,22 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma } from "./db";
 import { logger } from "@/lib/logger";
 
 /**
  * Получает количество кредитов пользователя
+ * @param userIdFromCaller - Опциональный ID пользователя (если не передан, берётся из сессии)
  * @returns Количество кредитов пользователя или 0 если пользователь не найден
  */
 export const userCredits = async (userIdFromCaller?: string | null): Promise<number> => {
   try {
-    const resolvedUserId = userIdFromCaller ?? (await currentUser())?.id;
+    let resolvedUserId = userIdFromCaller;
+    
+    // Если userId не передан, получаем из сессии
+    if (!resolvedUserId) {
+      const session = await auth();
+      resolvedUserId = session?.user?.id;
+    }
+    
     if (!resolvedUserId) {
       logger.warn(
         "Попытка получить кредиты для неаутентифицированного пользователя"
@@ -18,7 +26,7 @@ export const userCredits = async (userIdFromCaller?: string | null): Promise<num
 
     // Более эффективный запрос - получаем только поле credits
     const userData = await prisma.user.findUnique({
-      where: { userId: resolvedUserId },
+      where: { id: resolvedUserId },
       select: { credits: true },
     });
 

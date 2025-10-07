@@ -6,18 +6,18 @@ import { AnimatedShinyText } from "@/components/ui/animated-shiny-text";
 import { Input } from "@/components/ui/input";
 import { TypingAnimation } from "@/components/ui/typing-animation";
 import { cn } from "@/lib/utils";
-import { currentUser } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { ArrowRightIcon } from "lucide-react";
 
 const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
     const { videoId } = await params;
-    const user = await currentUser();
+    const session = await auth();
 
-    if (!user) {
+    if (!session?.user?.id) {
         return null
     }
 
-    const userId = user?.id;
+    const userId = session.user.id;
     const prompt = await findPrompt(videoId)
     if (!prompt || prompt === undefined) {
         return null

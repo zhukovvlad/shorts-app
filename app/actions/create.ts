@@ -19,7 +19,7 @@
 
 'use server'
 
-import { auth } from "@clerk/nextjs/server"
+import { auth } from "@/auth"
 import { randomUUID } from "crypto"
 import { prisma } from "../lib/db"
 import { videoQueue } from "../lib/queue"
@@ -106,10 +106,12 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
 
   // Захватываем userId заранее для использования в логах
   // Это предотвращает повторные вызовы auth() и улучшает производительность
-  const { userId } = await auth()
-  if (!userId) {
+  const session = await auth()
+  if (!session?.user?.id) {
     throw new Error('User not authenticated')
   }
+
+  const userId = session.user.id
 
   try {
     // Валидация входных данных
@@ -142,7 +144,7 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       // updateMany с условием предотвращает отрицательный баланс
       const creditUpdateResult = await tx.user.updateMany({
         where: {
-          userId,
+          id: userId,
           credits: { gt: 0 } // Только если кредитов больше 0
         },
         data: { credits: { decrement: 1 } }
@@ -153,8 +155,8 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       if (creditUpdateResult.count === 0) {
         // Выполняем дополнительную проверку существования пользователя в той же транзакции
         const userExists = await tx.user.findUnique({
-          where: { userId },
-          select: { userId: true } // Загружаем минимум данных для проверки
+          where: { id: userId },
+          select: { id: true } // Загружаем минимум данных для проверки
         })
 
         if (!userExists) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { Plus, Video } from "lucide-react";
 import TooltipCredits from "@/app/components/creditsButton";
@@ -52,16 +52,20 @@ const Navigation = ({ credits }: NavigationProps) => {
         {!session?.user ? (
         <>
           <Button 
+            asChild
             className={outlineButtonClass}
-            onClick={() => signIn()}
           >
-            Sign In
+            <Link href="/sign-in">
+              Sign In
+            </Link>
           </Button>
           <Button 
+            asChild
             className={gradientButtonClass}
-            onClick={() => signIn()}
           >
-            Sign Up
+            <Link href="/sign-up">
+              Sign Up
+            </Link>
           </Button>
         </>
       ) : (

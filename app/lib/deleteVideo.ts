@@ -1,16 +1,17 @@
 'use server'
 
-import { currentUser } from "@clerk/nextjs/server"
+import { auth } from "@/auth";
 import { prisma } from "./db";
 import { revalidatePath } from "next/cache";
 
 export async function deleteVideo(videoId: string) {
     try {
-        const user = await currentUser();
-        if (!user) {
+        const session = await auth();
+        if (!session?.user?.id) {
             return null
         }
-        const userId = user?.id;
+        
+        const userId = session.user.id;
         await prisma.video.delete({
             where: { videoId: videoId, userId: userId }
         })

@@ -1,29 +1,31 @@
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma, withRetry } from "./db";
 import { logger } from "@/lib/logger";
 
 /**
- * Проверяет существование пользователя в базе данных и возвращает его Clerk ID.
+ * Проверяет существование пользователя в базе данных и возвращает его ID.
  * Использует атомарную операцию upsert для избежания race conditions при первом входе.
- * Оптимизирована для производительности - использует auth() вместо currentUser().
+ * Оптимизирована для производительности - использует NextAuth session.
  * 
  * @returns Promise<string | null> - ID пользователя если аутентифицирован и пользователь существует/создан, иначе null
  */
 const checkUser = async (): Promise<string | null> => {
   try {
-    // Используем auth() вместо currentUser() для лучшей производительности
-    // auth() только извлекает userId из токена без дополнительных API вызовов
-    const { userId } = await auth();
+    // Получаем сессию из NextAuth
+    const session = await auth();
     
-    if (!userId) {
+    if (!session?.user?.id) {
       return null;
     }
 
-    // Проверяем, существует ли пользователь в базе данных, чтобы избежать ненужных API вызовов
+    const userId = session.user.id;
+    const email = session.user.email;
+
+    // Проверяем, существует ли пользователь в базе данных
     const existingUser = await withRetry(async () => {
       return await prisma.user.findUnique({
-        where: { userId },
-        select: { userId: true }
+        where: { id: userId },
+        select: { id: true }
       });
     });
 
@@ -31,28 +33,23 @@ const checkUser = async (): Promise<string | null> => {
       return userId;
     }
 
-    // Получаем полные данные пользователя из Clerk только если нужно создать нового пользователя
-    let email: string;
-    try {
-      const client = await clerkClient();
-      const user = await client.users.getUser(userId);
-      email = user.primaryEmailAddress?.emailAddress ?? `${userId}@placeholder.invalid`;
-    } catch (clerkError) {
-      logger.warn("Не удалось получить данные пользователя из Clerk, используем placeholder email", { error: clerkError });
-      email = `${userId}@placeholder.invalid`;
-    }
-
     // Создаем нового пользователя с атомарной операцией upsert
-    await withRetry(async () => {
-      return await prisma.user.upsert({
-        where: { userId },
-        update: {}, // Обновления не нужны, если пользователь каким-то образом уже существует
-        create: {
-          userId,
-          email,
-        },
+    // Пользователь должен был быть создан через PrismaAdapter при первом входе,
+    // но на всякий случай делаем upsert
+    if (email) {
+      await withRetry(async () => {
+        return await prisma.user.upsert({
+          where: { id: userId },
+          update: {}, // Обновления не нужны, если пользователь уже существует
+          create: {
+            id: userId,
+            email,
+            name: session.user.name,
+            image: session.user.image,
+          },
+        });
       });
-    });
+    }
 
     return userId;
   } catch (error) {

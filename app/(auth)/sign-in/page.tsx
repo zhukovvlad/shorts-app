@@ -1,13 +1,38 @@
 "use client";
 
+import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Chrome, Github, Mail } from "lucide-react";
+import { Chrome, Github, Mail, AlertCircle } from "lucide-react";
 
 export default function SignInPage() {
-  const handleSignIn = (provider: string) => {
-    signIn(provider, { callbackUrl: "/dashboard" });
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+
+  const handleSignIn = async (provider: string) => {
+    try {
+      // Clear any previous errors
+      setError(null);
+      setIsLoading(provider);
+
+      const result = await signIn(provider, { 
+        callbackUrl: "/dashboard",
+        redirect: false 
+      });
+
+      if (result?.error) {
+        setError("Не удалось войти. Пожалуйста, попробуйте еще раз.");
+      } else if (result?.url) {
+        // Redirect manually if successful
+        window.location.href = result.url;
+      }
+    } catch (err) {
+      setError("Произошла ошибка при входе. Пожалуйста, попробуйте позже.");
+      console.error("Sign in error:", err);
+    } finally {
+      setIsLoading(null);
+    }
   };
 
   return (
@@ -20,42 +45,53 @@ export default function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <p>{error}</p>
+            </div>
+          )}
+
           <Button
             variant="outline"
             className="w-full h-12 text-base"
             onClick={() => handleSignIn("google")}
+            disabled={isLoading !== null}
           >
             <Chrome className="mr-2 h-5 w-5" />
-            Войти через Google
+            {isLoading === "google" ? "Вход..." : "Войти через Google"}
           </Button>
 
           <Button
             variant="outline"
             className="w-full h-12 text-base"
             onClick={() => handleSignIn("yandex")}
+            disabled={isLoading !== null}
           >
             <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0c6.627 0 12 5.373 12 12s-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0zm4.576 17.885h-2.078l-3.23-7.605h-.054v7.605H9.346V6.115h2.63c2.192 0 3.542 1.256 3.542 3.021 0 1.554-.87 2.538-2.23 2.889l2.288 5.86zm-3.868-9.582c0-1.024-.696-1.597-1.8-1.597h-.562v3.27h.562c1.104 0 1.8-.573 1.8-1.673z"/>
             </svg>
-            Войти через Яндекс
+            {isLoading === "yandex" ? "Вход..." : "Войти через Яндекс"}
           </Button>
 
           <Button
             variant="outline"
             className="w-full h-12 text-base"
             onClick={() => handleSignIn("mailru")}
+            disabled={isLoading !== null}
           >
             <Mail className="mr-2 h-5 w-5" />
-            Войти через Mail.ru
+            {isLoading === "mailru" ? "Вход..." : "Войти через Mail.ru"}
           </Button>
 
           <Button
             variant="outline"
             className="w-full h-12 text-base"
             onClick={() => handleSignIn("github")}
+            disabled={isLoading !== null}
           >
             <Github className="mr-2 h-5 w-5" />
-            Войти через GitHub
+            {isLoading === "github" ? "Вход..." : "Войти через GitHub"}
           </Button>
 
           <div className="relative">
