@@ -282,28 +282,22 @@ describe('Stripe Checkout Route', () => {
     });
 
     it('should not expose validPriceIds in production', async () => {
-      // Mock production environment
-      const originalEnv = process.env;
-      process.env = { ...originalEnv, NODE_ENV: 'production' };
+      process.env = { ...process.env, NODE_ENV: 'production' };
 
-      try {
-        const request = new Request('http://localhost:3000/api/stripe/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ priceId: 'price_UNKNOWN123' }),
-        });
+      const request = new Request('http://localhost:3000/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId: 'price_UNKNOWN123' }),
+      });
 
-        const response = await POST(request);
-        const data = await response.json();
+      const response = await POST(request);
+      const data = await response.json();
 
-        expect(response.status).toBe(400);
-        expect(data.error).toBe('Invalid priceId');
-        // validPriceIds should NOT be exposed in production
-        expect(data.validPriceIds).toBeUndefined();
-        expect(mockStripeCreate).not.toHaveBeenCalled();
-      } finally {
-        process.env = originalEnv;
-      }
+      expect(response.status).toBe(400);
+      expect(data.error).toBe('Invalid priceId');
+      // validPriceIds should NOT be exposed in production
+      expect(data.validPriceIds).toBeUndefined();
+      expect(mockStripeCreate).not.toHaveBeenCalled();
     });
 
     it('should reject SQL injection attempt', async () => {

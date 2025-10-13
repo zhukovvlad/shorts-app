@@ -31,11 +31,13 @@ export async function POST(req: Request) {
         if (typeof sessionId !== 'string' || !sessionId.trim()) {
             return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
         }
+        // Trim whitespace after validation
+        const trimmedSessionId = sessionId.trim();
 
         // Retrieve the checkout session from Stripe with line_items expanded
         // This allows us to verify priceId from server-trusted data (line_items)
         // rather than relying solely on client-provided metadata
-        const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId, {
+        const checkoutSession = await stripe.checkout.sessions.retrieve(trimmedSessionId, {
             expand: ['line_items', 'line_items.data.price'],
         });
 
@@ -73,7 +75,7 @@ export async function POST(req: Request) {
 
         // Check if this session was already processed to prevent double-crediting
         const existingTransaction = await prisma.creditTransaction.findUnique({
-            where: { stripeSessionId: sessionId }
+            where: { stripeSessionId: trimmedSessionId }
         });
 
         if (existingTransaction) {
@@ -101,7 +103,7 @@ export async function POST(req: Request) {
                 // Record the transaction
                 await tx.creditTransaction.create({
                     data: {
-                        stripeSessionId: sessionId,
+                        stripeSessionId: trimmedSessionId,
                         userId: session.user.id,
                         amount: creditsToAdd,
                         type: CreditTransactionType.CREDIT
