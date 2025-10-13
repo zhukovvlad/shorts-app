@@ -7,14 +7,46 @@
 
 ## [1.6.4] - 2025-10-13
 
+### Добавлено
+- **Database: Утилита `withRetry` для автоматических повторов Prisma операций**
+  - Экспортируется из `app/lib/db.ts` для переиспользования в приложении
+  - Автоматически повторяет операции при сетевых ошибках (P1001, P1017)
+  - Использует экспоненциальный backoff с jitter для предотвращения перегрузки
+  - Настраиваемые параметры: `maxRetries` (по умолчанию 3) и `delayMs` (по умолчанию 1000ms)
+  - Type-safe реализация с proper error narrowing через `Prisma.PrismaClientKnownRequestError`
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
+
 ### Исправлено
 - **Worker: Корректное закрытие соединения с PostgreSQL**
-  - Добавлено явное закрытие `prisma.$disconnect()` в `gracefulShutdown` функции worker
+  - Добавлено явное закрытие `prisma.$disconnect()` в функции `gracefulShutdown`
   - Добавлен флаг `isShuttingDown` для предотвращения множественных вызовов shutdown
   - Добавлены обработчики `uncaughtException` и `unhandledRejection` для корректного завершения
   - Убран обработчик `beforeExit` из worker, чтобы не конфликтовать с `db.ts`
   - Исправлена ошибка: `prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }`
-  - Файл: `worker/worker.ts` (строки 245-283)
+  - Файл: `worker/worker.ts`
+
+- **Worker: Best-effort закрытие ресурсов при shutdown**
+  - Изменена логика `gracefulShutdown` для закрытия всех ресурсов независимо от ошибок
+  - Теперь не прерываем shutdown на первой ошибке, а пытаемся закрыть все ресурсы
+  - Каждый ресурс (Worker, Redis, Prisma) закрывается в отдельном try-catch
+  - Exit code зависит от наличия ошибок: 0 если все успешно, 1 если были ошибки
+  - Улучшена диагностика с отдельными сообщениями об ошибках для каждого ресурса
+  - Файл: `worker/worker.ts`, функция `gracefulShutdown()`
+
+- **Worker: Улучшено логирование критических ошибок**
+  - Добавлен stack trace в логи для `uncaughtException` (message + stack)
+  - Добавлен stack trace в логи для `unhandledRejection` с type-safe обработкой
+  - Использован `unknown` тип вместо `any` для `unhandledRejection`
+  - Улучшена диагностика критических ошибок для быстрого поиска проблем
+  - Файл: `worker/worker.ts`, обработчики `uncaughtException` и `unhandledRejection`
+
+- **Worker: Добавлен retry механизм для DB операций**
+  - Импортирован `withRetry` из `@/app/lib/db` для обработки transient DB ошибок
+  - Обернут `prisma.video.findUnique` в `withRetry` для защиты от P1001/P1017 ошибок
+  - Обернут `prisma.video.update` (final failure) в `withRetry`
+  - Автоматические повторные попытки при временных проблемах с БД
+  - Экспоненциальный backoff предотвращает перегрузку БД
+  - Файл: `worker/worker.ts`, DB операции в job handler
 
 - **Database: Graceful shutdown для всех окружений**
   - Убрана проверка `if (process.env.NODE_ENV !== "production")` для обработчика `beforeExit`
@@ -22,7 +54,24 @@
   - Добавлена защита от ошибок повторного закрытия соединения
   - `beforeExit` работает как fallback на случай, если явный shutdown не сработал
   - Обработчик игнорирует ошибки повторного закрытия для идемпотентности
-  - Файл: `app/lib/db.ts` (строки 56-73)
+  - Добавлен комментарий о том, что `beforeExit` не срабатывает при `process.exit()`
+  - Файл: `app/lib/db.ts`, обработчик `beforeExit`
+
+- **Database: Упрощена логика выбора URL подключения**
+  - Упрощена цепочка выбора DB URL до простого fallback: `DATABASE_URL || DIRECT_URL`
+  - Убрана избыточная логика с разделением на dev/prod (использовались одинаковые переменные)
+  - Улучшена читаемость кода без изменения функциональности
+  - Файл: `app/lib/db.ts`, константа `resolvedDbUrl`
+
+- **Database: Улучшен механизм retry с type-safety**
+  - Добавлен импорт `Prisma` для типобезопасной проверки ошибок
+  - Заменен `any` на `unknown` с proper type narrowing через `instanceof`
+  - Добавлен экспоненциальный backoff с jitter для предотвращения thundering herd
+  - Backoff ограничен максимумом в 30 секунд
+  - Добавлен случайный jitter до 250ms для распределения нагрузки
+  - В логах теперь указывается конкретный код ошибки Prisma (P1001, P1017)
+  - Улучшена обработка `lastError` с fallback на generic error message
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
 
 - **Архитектура: Двухуровневая система закрытия соединений**
   - Приоритет 1: Явное закрытие в Worker через `gracefulShutdown` (SIGINT/SIGTERM/uncaught)

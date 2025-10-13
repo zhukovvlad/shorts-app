@@ -3,7 +3,7 @@
 ## Проблема
 
 После завершения задачи в worker появлялась ошибка:
-```
+```text
 prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
 ```
 
@@ -114,7 +114,8 @@ process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
    - uncaughtException/unhandledRejection - gracefulShutdown вызывает prisma.$disconnect()
    
 2. **Автоматическое закрытие в db.ts** (fallback)
-   - beforeExit - срабатывает когда event loop пуст
+   - beforeExit - срабатывает когда event loop пуст (перед завершением процесса)
+   - **Важно:** `beforeExit` не срабатывает, если вызван `process.exit()` - в этом случае сработает событие `exit`
    - Работает во всех окружениях (dev + production)
 
 3. **Защита от двойного закрытия**
@@ -134,7 +135,7 @@ process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
 ## Логи после исправления
 
 Вместо ошибки теперь должны быть логи:
-```
+```text
 [WORKER] INFO: Graceful shutdown initiated {"signal":"SIGTERM"}
 [WORKER] INFO: Worker closed successfully
 [WORKER] INFO: Redis connection closed successfully
