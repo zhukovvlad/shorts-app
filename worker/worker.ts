@@ -7,26 +7,41 @@ import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 import { workerLogger as logger } from "@/lib/logger";
 
 // Функция для определения, стоит ли делать ретрай
+// Проверяет network/timeout/DNS/socket ошибки, избегая маскировки логических багов
 function isRetryableError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     
+    // Проверяем error.code для системных ошибок (более надежно чем message)
+    const errorCode = (error as any).code;
+    const retryableCodes = [
+        'ECONNRESET',     // Connection reset
+        'ENOTFOUND',      // DNS lookup failed
+        'ETIMEDOUT',      // Connection timeout
+        'ECONNREFUSED',   // Connection refused
+        'ENETUNREACH',    // Network unreachable
+        'EAI_AGAIN',      // DNS temporary failure
+        'EPIPE',          // Broken pipe
+    ];
+    
+    if (errorCode && retryableCodes.includes(errorCode)) {
+        return true;
+    }
+    
+    // Fallback на проверку message для других типов ошибок
     const message = error.message.toLowerCase();
     
-    // Ошибки, которые можно повторить
-    const retryableErrors = [
+    // Только явные сетевые/timeout ошибки, без "internal server error"
+    const retryablePatterns = [
         'fetch failed',
         'connect timeout',
-        'econnreset',
-        'enotfound',
-        'timeout',
         'network error',
         'connection refused',
         'temporary failure',
-        'service unavailable',
-        'internal server error'
+        'service unavailable',  // 503
+        'gateway timeout',      // 504
     ];
     
-    return retryableErrors.some(retryableError => message.includes(retryableError));
+    return retryablePatterns.some(pattern => message.includes(pattern));
 }
 
 // Логируем переменные окружения для отладки
@@ -58,9 +73,19 @@ connection.on('connect', () => {
 const worker = new Worker('video-processing', async (job: Job) => {
     const { videoId } = job.data;
     
-    // Получаем checkpoint информацию для логирования
-    const checkpoint = await getVideoCheckpoint(videoId);
-    const nextStep = getNextStep(checkpoint);
+    // Получаем checkpoint информацию для логирования (non-fatal если Redis недоступен)
+    let checkpoint = null;
+    let nextStep = 'script'; // Default first step
+    
+    try {
+        checkpoint = await getVideoCheckpoint(videoId);
+        nextStep = getNextStep(checkpoint);
+    } catch (error) {
+        logger.warn('Failed to get checkpoint from Redis, starting from beginning', {
+            videoId,
+            error: error instanceof Error ? error.message : String(error)
+        });
+    }
     
     if (checkpoint) {
         logger.info('Resuming job from checkpoint', {
@@ -175,18 +200,19 @@ const worker = new Worker('video-processing', async (job: Job) => {
         // Используем уже полученный video из области видимости выше
         if (video) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const msg = errorMessage.toLowerCase(); // Normalize для case-insensitive проверок
             let userFriendlyError = 'Произошла техническая ошибка';
             
-            if (errorMessage.includes('fetch failed') || errorMessage.includes('Connect Timeout')) {
+            if (msg.includes('fetch failed') || msg.includes('connect timeout') || msg.includes('etimedout')) {
                 userFriendlyError = 'Проблема с подключением к внешним сервисам';
-            } else if (errorMessage.includes('API') || errorMessage.includes('assemblyai')) {
+            } else if (msg.includes('api') || msg.includes('assemblyai')) {
                 userFriendlyError = 'Временная недоступность сервиса субтитров';
-            } else if (errorMessage.includes('S3') || errorMessage.includes('upload')) {
+            } else if (msg.includes('s3') || msg.includes('upload')) {
                 userFriendlyError = 'Проблема с загрузкой файлов';
             }
 
             await setVideoProgress(videoId, {
-                status: shouldRetry ? 'error' : 'error',
+                status: 'error',
                 error: shouldRetry ? 
                     `${userFriendlyError} на шаге "${failedStep}". Попытка ${attemptNumber} из ${maxAttempts}` : 
                     `${userFriendlyError} на шаге "${failedStep}"`,
@@ -251,7 +277,7 @@ testRedisConnection().then(success => {
 let isShuttingDown = false;
 
 // Graceful shutdown - закрываем соединения при завершении процесса
-const gracefulShutdown = async (signal: string) => {
+const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) => {
   // Предотвращаем повторные вызовы
   if (isShuttingDown) {
     logger.debug('Shutdown already in progress, ignoring signal', { signal });
@@ -259,10 +285,11 @@ const gracefulShutdown = async (signal: string) => {
   }
   
   isShuttingDown = true;
-  logger.info('Graceful shutdown initiated', { signal });
+  logger.info('Graceful shutdown initiated', { signal, isFatal: !!fatalError });
   
   // Best-effort закрытие всех ресурсов (не прерываем на первой ошибке)
-  let hadError = false;
+  // hadError = true если были ошибки при закрытии ресурсов ИЛИ если это фатальная ошибка
+  let hadError = !!fatalError;
   
   // Закрываем Worker
   try {
@@ -309,7 +336,7 @@ process.on('uncaughtException', (error) => {
     message: error.message,
     stack: error.stack
   });
-  gracefulShutdown('uncaughtException');
+  gracefulShutdown('uncaughtException', error); // Передаем error как фатальную ошибку
 });
 process.on('unhandledRejection', (reason: unknown) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
@@ -318,5 +345,5 @@ process.on('unhandledRejection', (reason: unknown) => {
     message: msg,
     stack
   });
-  gracefulShutdown('unhandledRejection');
+  gracefulShutdown('unhandledRejection', true); // Передаем true как флаг фатальной ошибки
 });
