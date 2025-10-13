@@ -7,6 +7,21 @@
 
 import { Prisma } from '@prisma/client';
 
+/**
+ * Helper factory to create PrismaClientKnownRequestError with correct constructor signature
+ */
+function createPrismaError(
+  message: string,
+  code: string,
+  meta?: Record<string, any>
+): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError(message, {
+    code,
+    clientVersion: '6.16.1',
+    meta
+  });
+}
+
 describe('Credit System Race Conditions', () => {
   describe('Concurrent Transaction Processing', () => {
     it('should handle P2002 error gracefully in add-credits endpoint', async () => {
@@ -37,9 +52,10 @@ describe('Credit System Race Conditions', () => {
           return { id: 'user1', credits: 110 };
         } else {
           // Request 2: P2002 error
-          throw new Prisma.PrismaClientKnownRequestError(
+          throw createPrismaError(
             'Unique constraint failed on the fields: (`stripeSessionId`)',
-            { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+            'P2002',
+            { target: ['stripeSessionId'] }
           );
         }
       });
@@ -94,9 +110,10 @@ describe('Credit System Race Conditions', () => {
           return;
         } else {
           // Webhook 2: P2002 error
-          throw new Prisma.PrismaClientKnownRequestError(
+          throw createPrismaError(
             'Unique constraint failed on the fields: (`stripeSessionId`)',
-            { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+            'P2002',
+            { target: ['stripeSessionId'] }
           );
         }
       });
@@ -131,9 +148,10 @@ describe('Credit System Race Conditions', () => {
       mockTransaction
         .mockResolvedValueOnce({ credits: 110 }) // Request 1 success
         .mockRejectedValueOnce(
-          new Prisma.PrismaClientKnownRequestError(
+          createPrismaError(
             'Unique constraint failed',
-            { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+            'P2002',
+            { target: ['stripeSessionId'] }
           )
         ); // Request 2 P2002
 
@@ -157,9 +175,10 @@ describe('Credit System Race Conditions', () => {
     it('should return current user balance on P2002 in add-credits', async () => {
       // When P2002 occurs, fetch and return current user balance
       
-      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+      const p2002Error = createPrismaError(
         'Unique constraint failed',
-        { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+        'P2002',
+        { target: ['stripeSessionId'] }
       );
 
       const mockPrisma = {
@@ -189,9 +208,10 @@ describe('Credit System Race Conditions', () => {
     it('should return 200 OK on P2002 in webhook', async () => {
       // When P2002 occurs in webhook, return 200 OK (no retry)
       
-      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+      const p2002Error = createPrismaError(
         'Unique constraint failed',
-        { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+        'P2002',
+        { target: ['stripeSessionId'] }
       );
 
       const mockTransaction = jest.fn().mockRejectedValue(p2002Error);
@@ -212,9 +232,10 @@ describe('Credit System Race Conditions', () => {
     it('should re-throw non-P2002 transaction errors', async () => {
       // Only P2002 is treated as success, other errors should be re-thrown
       
-      const p2025Error = new Prisma.PrismaClientKnownRequestError(
+      const p2025Error = createPrismaError(
         'Record not found',
-        { code: 'P2025', clientVersion: '6.16.1', meta: { cause: 'Record to update not found.' } }
+        'P2025',
+        { cause: 'Record to update not found.' }
       );
 
       const genericError = new Error('Connection timeout');
@@ -241,9 +262,10 @@ describe('Credit System Race Conditions', () => {
 
   describe('Prisma Error Codes', () => {
     it('P2002: Unique constraint violation', () => {
-      const error = new Prisma.PrismaClientKnownRequestError(
+      const error = createPrismaError(
         'Unique constraint failed on the fields: (`stripeSessionId`)',
-        { code: 'P2002', clientVersion: '6.16.1', meta: { target: ['stripeSessionId'] } }
+        'P2002',
+        { target: ['stripeSessionId'] }
       );
 
       expect(error.code).toBe('P2002');
@@ -252,9 +274,10 @@ describe('Credit System Race Conditions', () => {
     });
 
     it('P2025: Record not found', () => {
-      const error = new Prisma.PrismaClientKnownRequestError(
+      const error = createPrismaError(
         'Record to update not found.',
-        { code: 'P2025', clientVersion: '6.16.1', meta: { cause: 'Record to update not found.' } }
+        'P2025',
+        { cause: 'Record to update not found.' }
       );
 
       expect(error.code).toBe('P2025');

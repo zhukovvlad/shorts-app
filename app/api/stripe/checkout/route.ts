@@ -34,7 +34,7 @@ export const getBaseUrl = (env: NodeJS.ProcessEnv = process.env): string => {
                 const match = candidateUrl.match(/^([a-z][a-z0-9+.-]*):\/\//i);
                 const protocol = match ? match[1] : 'unknown';
                 throw new Error(
-                    `Invalid protocol: ${protocol}:. Only http and https are allowed. ` +
+                    `Invalid protocol: ${protocol}. Only http and https are allowed. ` +
                     `Please set NEXT_PUBLIC_APP_URL to use http:// or https://`
                 );
             }
