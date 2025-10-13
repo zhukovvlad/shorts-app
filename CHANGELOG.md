@@ -5,6 +5,58 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2025-10-13
+
+### Исправлено
+- **Code Review: Stripe line_items expansion**
+  - Обновлен `stripe.checkout.sessions.retrieve` для полного раскрытия line_items
+  - Параметр `expand` теперь включает `['line_items', 'line_items.data.price']`
+  - Гарантирует получение полного списка элементов с раскрытой информацией о ценах
+  - Файл: `app/api/stripe/add-credits/route.ts` (строка 39)
+
+- **Code Review: PrismaClientKnownRequestError constructor**
+  - Добавлена helper-функция `createPrismaError()` для DRY принципа
+  - Заменены все 8 вхождений конструктора на вызовы helper-функции
+  - Версия клиента ('6.16.1') теперь определена в одном месте
+  - Упрощена поддержка при обновлении Prisma
+  - Файл: `lib/creditSystem.race.spec.ts` (строки 11-19, и 8 использований)
+
+- **Code Review: Улучшенная обработка JSON в add-credits endpoint**
+  - Добавлен try-catch для обработки невалидного JSON body
+  - Невалидный JSON теперь возвращает 400 вместо 500
+  - Добавлена проверка типа `sessionId` (должен быть непустой string)
+  - Улучшена валидация с проверкой `trim()` для whitespace
+  - Файл: `app/api/stripe/add-credits/route.ts` (строки 25-32)
+
+- **Code Review: Устранение variable shadowing**
+  - Переименована внутренняя переменная `user` в `updatedUser` внутри транзакции
+  - Устранено затенение переменной (shadowing) для улучшения читаемости
+  - Нет путаницы между внешней переменной `user` и результатом транзакции
+  - Файл: `app/api/stripe/add-credits/route.ts` (строки 86-108)
+
+- **Code Review: Исправлена пунктуация в error message**
+  - Убрано лишнее двоеточие в сообщении об ошибке протокола
+  - Было: `Invalid protocol: ${protocol}:. Only http...`
+  - Стало: `Invalid protocol: ${protocol}. Only http...`
+  - Улучшена читаемость и ясность сообщения об ошибке
+  - Файл: `app/api/stripe/checkout/route.ts` (строка 37)
+
+- **Code Review: Markdownlint MD040 compliance**
+  - Добавлен язык `text` к fenced code block без языковой аннотации
+  - Теперь соответствует правилу markdownlint MD040
+  - Улучшена правильность markdown разметки
+  - Файл: `CHANGELOG.md` (строка 322)
+
+- **Code Review: Изоляция env мутаций в тестах**
+  - Добавлено сохранение и восстановление `process.env` в тестах checkout
+  - `ORIGINAL_ENV` сохраняется перед всеми тестами
+  - `beforeEach` создает чистую копию env для каждого теста
+  - `afterEach` восстанавливает оригинальный env
+  - Добавлен `jest.resetModules()` для полной изоляции
+  - Предотвращается "утечка" env мутаций между тестами
+  - Все 33 теста проходят успешно
+  - Файл: `app/api/stripe/checkout/route.spec.ts` (строки 31-50)
+
 ## [1.6.2] - 2025-10-13
 
 ### Исправлено
@@ -319,11 +371,12 @@
   - Покрытие: authentication, validation, успешные checkout, error handling, URL normalization, protocol validation
 
 - **Image Processing** (`app/actions/image.ts`)
-```
+```text
   - Функция `extractUrlFromValue` теперь экспортируется на уровне модуля
   - Улучшена переиспользуемость - можно импортировать в тестах и других модулях
   - Удалена локальная копия функции внутри `processImage`
   - Добавлена JSDoc документация для экспортируемой функции
+```
 
 ## [1.6.1] - 2025-10-13
 

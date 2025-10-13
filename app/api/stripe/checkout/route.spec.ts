@@ -28,15 +28,24 @@ jest.mock('stripe', () => {
 
 import { auth } from '@/auth';
 
+const ORIGINAL_ENV = process.env;
+
 describe('Stripe Checkout Route', () => {
   let mockAuth: jest.MockedFunction<typeof auth>;
 
   beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+    
     mockAuth = auth as jest.MockedFunction<typeof auth>;
     
     // Reset mocks
     jest.clearAllMocks();
     mockStripeCreate.mockReset();
+  });
+
+  afterEach(() => {
+    process.env = ORIGINAL_ENV;
   });
 
   describe('getBaseUrl URL normalization', () => {

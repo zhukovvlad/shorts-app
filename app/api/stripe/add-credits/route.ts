@@ -22,8 +22,13 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const { sessionId } = await req.json();
-        if (!sessionId) {
+        let sessionId: unknown;
+        try {
+            ({ sessionId } = await req.json());
+        } catch {
+            return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+        }
+        if (typeof sessionId !== 'string' || !sessionId.trim()) {
             return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
         }
 
@@ -31,7 +36,7 @@ export async function POST(req: Request) {
         // This allows us to verify priceId from server-trusted data (line_items)
         // rather than relying solely on client-provided metadata
         const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId, {
-            expand: ['line_items.data.price'],
+            expand: ['line_items', 'line_items.data.price'],
         });
 
         // Verify the session belongs to this user
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
         try {
             const updatedUser = await prisma.$transaction(async (tx) => {
                 // Add credits
-                const user = await tx.user.update({
+                const updatedUser = await tx.user.update({
                     where: { id: session.user.id },
                     data: {
                         credits: {
@@ -103,7 +108,7 @@ export async function POST(req: Request) {
                     }
                 });
 
-                return user;
+                return updatedUser;
             });
 
             return NextResponse.json({
