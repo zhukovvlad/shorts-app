@@ -17,13 +17,21 @@ Both paths are **coordinated via `CreditTransaction` table** to prevent double-c
 
 #### 1. `CreditTransaction` Table (Coordination Point)
 ```prisma
+enum CreditTransactionType {
+  CREDIT
+  DEBIT
+}
+
 model CreditTransaction {
-  id              String   @id @default(cuid())
-  stripeSessionId String   @unique  // ← KEY: Prevents duplicates
+  id              String                @id @default(cuid())
+  stripeSessionId String                @unique  // ← KEY: Prevents duplicates
   userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount          Int
-  type            String
-  createdAt       DateTime @default(now())
+  type            CreditTransactionType
+  createdAt       DateTime              @default(now())
+
+  @@index([userId])
 }
 ```
 
@@ -40,7 +48,7 @@ The `stripeSessionId` unique constraint ensures **only one** credit addition per
 
 ### Scenario 1: Webhook Processes First ✅
 
-```
+```text
 User pays → Stripe → Webhook receives event
                       ↓
               Check CreditTransaction(sessionId)
@@ -53,7 +61,7 @@ User pays → Stripe → Webhook receives event
 ```
 
 If manual API is later called with same sessionId:
-```
+```text
 Client → /api/stripe/add-credits
               ↓
       Check CreditTransaction(sessionId)
@@ -67,7 +75,7 @@ Client → /api/stripe/add-credits
 
 ### Scenario 2: Manual API Processes First ✅
 
-```
+```text
 User pays → Client → /api/stripe/add-credits
                       ↓
               Check CreditTransaction(sessionId)
@@ -80,7 +88,7 @@ User pays → Client → /api/stripe/add-credits
 ```
 
 When webhook arrives later:
-```
+```text
 Stripe → Webhook receives event
               ↓
       Check CreditTransaction(sessionId)
@@ -94,7 +102,7 @@ Stripe → Webhook receives event
 
 ### Scenario 3: Race Condition (Both Start Simultaneously) ✅
 
-```
+```text
 Webhook                          Manual API
    ↓                                ↓
 Check CreditTransaction          Check CreditTransaction
@@ -105,14 +113,22 @@ Increment credits                Increment credits
    ↓                                ↓
 Create CreditTransaction         Create CreditTransaction
    ↓ (SUCCESS)                      ↓ (P2002 ERROR!)
-Return 200 OK                    Catch P2002 → Return 200 OK
+Return 200 OK                    Catch P2002 → Fetch balance → Return 200 OK
 ```
 
 **P2002 Handling:**
-- Prisma throws unique constraint violation
+
+**Webhook:**
+- Prisma throws unique constraint violation (P2002)
 - Catch block recognizes P2002 error code
-- Fetch current user balance
-- Return success response (credits already added by other path)
+- Returns 200 OK immediately (credits already added by other path)
+- No balance fetch needed (Stripe doesn't require it in response)
+
+**Manual API:**
+- Prisma throws unique constraint violation (P2002)
+- Catch block recognizes P2002 error code  
+- Fetches current user balance for response
+- Returns success with actual balance (UI displays it)
 
 **Result**: Credits added once ✅
 
