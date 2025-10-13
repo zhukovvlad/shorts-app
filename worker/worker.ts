@@ -243,8 +243,18 @@ testRedisConnection().then(success => {
   }
 });
 
+// Флаг для предотвращения множественных вызовов graceful shutdown
+let isShuttingDown = false;
+
 // Graceful shutdown - закрываем соединения при завершении процесса
 const gracefulShutdown = async (signal: string) => {
+  // Предотвращаем повторные вызовы
+  if (isShuttingDown) {
+    logger.debug('Shutdown already in progress, ignoring signal', { signal });
+    return;
+  }
+  
+  isShuttingDown = true;
   logger.info('Graceful shutdown initiated', { signal });
   
   try {
@@ -253,6 +263,9 @@ const gracefulShutdown = async (signal: string) => {
     
     await connection.quit();
     logger.info('Redis connection closed successfully');
+    
+    await prisma.$disconnect();
+    logger.info('Prisma connection closed successfully');
     
     process.exit(0);
   } catch (error) {
@@ -265,3 +278,13 @@ const gracefulShutdown = async (signal: string) => {
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+// Убираем beforeExit чтобы избежать конфликта с db.ts
+// process.on('beforeExit', () => gracefulShutdown('beforeExit'));
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { error: error.message });
+  gracefulShutdown('uncaughtException');
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { reason });
+  gracefulShutdown('unhandledRejection');
+});
