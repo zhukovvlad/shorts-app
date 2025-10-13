@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { withRetry, isPrismaRetryable } from './db';
 
 // Mock logger to prevent console output during tests
-jest.mock('../../lib/logger', () => ({
+jest.mock('@/lib/logger', () => ({
   logger: {
     warn: jest.fn(),
     error: jest.fn(),

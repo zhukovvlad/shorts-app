@@ -155,7 +155,8 @@ export async function withRetry<T>(
 	delayMs = 1000
 ): Promise<T> {
 	let lastError: unknown;
-	for (let attempt = 1; attempt <= Math.max(1, maxRetries); attempt++) {
+	const attemptsAllowed = Math.max(1, maxRetries);
+	for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
 		try {
 			return await operation();
 		} catch (error: unknown) {
@@ -172,13 +173,13 @@ export async function withRetry<T>(
 				code = error.errorCode;
 			}
 
-			if (attempt === maxRetries || !retryable) {
+			if (attempt === attemptsAllowed || !retryable) {
 				throw error;
 			}
 
 			// Exponential backoff with small jitter, capped at 30s
 			const backoff = Math.min(delayMs * 2 ** (attempt - 1), 30_000) + Math.floor(Math.random() * 250);
-			logger.warn('Database connection failed, retrying', { attempt, maxRetries, delayMs: backoff, code });
+			logger.warn('Database connection failed, retrying', { attempt, maxRetries: attemptsAllowed, backoffMs: backoff, code });
 			await new Promise((resolve) => setTimeout(resolve, backoff));
 		}
 	}

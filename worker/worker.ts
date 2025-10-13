@@ -180,17 +180,10 @@ const worker = new Worker('video-processing', async (job: Job) => {
         });
 
         // Получаем checkpoint для определения проблемного шага
-        // Защищаем от ошибок Redis, чтобы не маскировать оригинальную ошибку
-        let failedStep = 'unknown';
-        try {
-            const checkpoint = await getVideoCheckpoint(videoId);
-            failedStep = getNextStep(checkpoint);
-        } catch (checkpointError) {
-            logger.warn('Failed to read checkpoint after error', {
-                videoId,
-                error: checkpointError instanceof Error ? checkpointError.message : String(checkpointError)
-            });
-        }
+        // getVideoCheckpoint уже обрабатывает ошибки и возвращает null при сбое
+        // getNextStep(null) вернет 'script' как fallback
+        const checkpoint = await getVideoCheckpoint(videoId);
+        const failedStep = getNextStep(checkpoint);
         
         // Определяем, стоит ли делать ретрай
         const attemptNumber = attemptsMade + 1;
