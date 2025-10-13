@@ -5,10 +5,6 @@ import { randomUUID } from "crypto";
 import { getModelById, getDefaultModel } from "@/lib/imageModels";
 import { logger } from "@/lib/logger";
 
-interface ReplicateOutput {
-  url: () => URL;
-}
-
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
 });
@@ -67,6 +63,7 @@ const processImage = async (img: string, modelId?: string) => {
     });
 
     // Функция для извлечения URL из различных форматов
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const extractUrlFromValue = (value: any): string | null => {
       if (typeof value === 'string') {
         return value;

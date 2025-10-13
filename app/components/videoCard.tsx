@@ -52,7 +52,7 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                             className="object-cover"
                             priority={priority}
                             loading={priority ? undefined : "lazy"}
-                            onError={(e) => {
+                            onError={() => {
                                 setImageError(true);
                             }}
                             onLoad={() => {

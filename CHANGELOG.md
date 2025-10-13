@@ -5,6 +5,50 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2025-10-13
+
+### Исправлено
+- **Критическая уязвимость в Stripe payments (Race Condition)**
+  - Устранена возможность двойного начисления кредитов за один платеж
+  - Добавлена модель `CreditTransaction` для отслеживания обработанных платежей
+  - Реализована идемпотентность через проверку `stripeSessionId` с уникальным constraint
+  - Атомарные транзакции: кредиты и запись транзакции создаются вместе или не создаются вовсе
+  - Добавлен audit trail для всех операций начисления кредитов
+
+- **Stripe checkout URL (Production Bug)**
+  - Исправлены захардкоженные URL в `/api/stripe/checkout`
+  - Теперь используется динамический `NEXT_PUBLIC_APP_URL` из переменных окружения
+  - Добавлен fallback на `VERCEL_URL` для Vercel deployments
+  - Добавлен `NEXT_PUBLIC_APP_URL` в `.env.local` для разработки
+
+- **Duplicate API calls в React StrictMode**
+  - Добавлен `useRef` флаг в `/success` странице для предотвращения повторных вызовов API
+  - Защита от двойных вызовов в development mode (StrictMode)
+  - Дополнительная защита на клиенте в дополнение к серверной идемпотентности
+
+- **TypeScript и Lint ошибки**
+  - Исправлены все compile errors
+  - Добавлен `Suspense` для `useSearchParams` в `/success` странице
+  - Исправлены экранированные кавычки в JSX (`&quot;`)
+  - Устранены предупреждения о неиспользуемых переменных
+
+### Добавлено
+- **База данных**
+  - Новая модель `CreditTransaction` с индексом по `userId` и уникальным constraint на `stripeSessionId`
+  
+- **Конфигурация**
+  - `NEXT_PUBLIC_APP_URL` переменная окружения для динамических URL
+
+### Изменено
+- **API `/api/stripe/add-credits`**
+  - Добавлена проверка на существующие транзакции перед начислением кредитов
+  - Использование `prisma.$transaction()` для атомарности операций
+  - Улучшенные сообщения об ошибках с указанием причины
+
+- **API `/api/stripe/checkout`**
+  - Динамические `success_url` и `cancel_url` вместо захардкоженных
+  - Функция `getBaseUrl()` с fallback логикой
+
 ## [1.6.0] - 2025-10-05
 
 ### Добавлено

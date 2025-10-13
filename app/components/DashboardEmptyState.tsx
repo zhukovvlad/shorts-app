@@ -11,7 +11,7 @@ interface EmptyStateProps {
   processingCount?: number;
 }
 
-export const DashboardEmptyState = ({ variant, totalVideos = 0, processingCount = 0 }: EmptyStateProps) => {
+export const DashboardEmptyState = ({ variant, processingCount = 0 }: EmptyStateProps) => {
   if (variant === 'no-videos') {
     return (
       <div className="text-center py-16 bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl border border-gray-700 mx-auto max-w-2xl">

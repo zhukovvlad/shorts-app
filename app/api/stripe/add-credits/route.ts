@@ -40,10 +40,11 @@ export async function POST(req: Request) {
 
         const priceId = checkoutSession.metadata?.priceId;
 
+        // Credit amounts configurable via environment variables
         const creditMap: Record<string, number> = {
-            'price_1SA7VoFbnWkjMFsPB9IvRYWg': 2,      // Starter - 1 video
-            'price_1SA7YQFbnWkjMFsPK7dLbJdu': 50,    // Pro - 25 videos  
-            'price_1SA7YQFbnWkjMFsPIj2Vct6k': 100    // Enterprise - 150 videos
+            'price_1SA7VoFbnWkjMFsPB9IvRYWg': parseInt(process.env.CREDITS_STARTER || '2'),
+            'price_1SA7YQFbnWkjMFsPK7dLbJdu': parseInt(process.env.CREDITS_PRO || '50'),
+            'price_1SA7YQFbnWkjMFsPIj2Vct6k': parseInt(process.env.CREDITS_ENTERPRISE || '100')
         };
 
         const creditsToAdd = creditMap[priceId || ''] || 0;
@@ -53,7 +54,6 @@ export async function POST(req: Request) {
         }
 
         // Check if credits were already added for this session
-        // You might want to track this in DB to avoid double-crediting
         const user = await prisma.user.findUnique({
             where: { id: session.user.id },
             select: { credits: true }
@@ -63,14 +63,43 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
         }
 
-        // Add credits
-        const updatedUser = await prisma.user.update({
-            where: { id: session.user.id },
-            data: {
-                credits: {
-                    increment: creditsToAdd
+        // Check if this session was already processed to prevent double-crediting
+        const existingTransaction = await prisma.creditTransaction.findUnique({
+            where: { stripeSessionId: sessionId }
+        });
+
+        if (existingTransaction) {
+            return NextResponse.json({
+                success: true,
+                creditsAdded: 0,
+                newBalance: user.credits,
+                message: "Credits already added for this session"
+            });
+        }
+
+        // Add credits and record transaction in a single transaction to ensure atomicity
+        const updatedUser = await prisma.$transaction(async (tx) => {
+            // Add credits
+            const user = await tx.user.update({
+                where: { id: session.user.id },
+                data: {
+                    credits: {
+                        increment: creditsToAdd
+                    }
                 }
-            }
+            });
+
+            // Record the transaction
+            await tx.creditTransaction.create({
+                data: {
+                    stripeSessionId: sessionId,
+                    userId: session.user.id,
+                    amount: creditsToAdd,
+                    type: 'CREDIT'
+                }
+            });
+
+            return user;
         });
 
         return NextResponse.json({
@@ -78,10 +107,11 @@ export async function POST(req: Request) {
             creditsAdded: creditsToAdd,
             newBalance: updatedUser.credits
         });
-    } catch (error: any) {
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to add credits";
         console.error('[add-credits] Error:', error);
         return NextResponse.json(
-            { error: error.message || "Failed to add credits" },
+            { error: errorMessage },
             { status: 500 }
         );
     }

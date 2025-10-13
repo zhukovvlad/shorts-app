@@ -81,3 +81,15 @@ model Video {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model CreditTransaction {
+  id               String   @id @default(cuid())
+  stripeSessionId  String   @unique
+  userId           String
+  amount           Int
+  type             String   // 'CREDIT' or other transaction types
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+  @@map("CreditTransaction")
+}

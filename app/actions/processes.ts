@@ -12,8 +12,8 @@ import { logger } from "@/lib/logger";
 export const processVideo = async (videoId: string, userId: string) => {
   try {
     // Получаем checkpoint ОДИН РАЗ в начале и создаем локальное состояние
-    let checkpoint = await getVideoCheckpoint(videoId);
-    let localNextStep = getNextStep(checkpoint);
+    const checkpoint = await getVideoCheckpoint(videoId);
+    const localNextStep = getNextStep(checkpoint);
     
     logger.info(`🔄 Processing video ${videoId}, starting from step: ${localNextStep}`);
     if (checkpoint?.lastFailedStep) {
@@ -176,7 +176,7 @@ export const processVideo = async (videoId: string, userId: string) => {
     try {
       const checkpoint = await getVideoCheckpoint(videoId);
       failedStep = getNextStep(checkpoint);
-    } catch (checkpointError) {
+    } catch {
       logger.warn('Failed to read checkpoint for error handling, using fallback logic');
       // Определяем шаг по тексту ошибки как fallback
       const errorMessage = error instanceof Error ? error.message : '';
