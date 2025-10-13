@@ -44,6 +44,8 @@
     - Использует `jest.runAllTimersAsync()` для симуляции задержек
     - Восстанавливает реальные timers и Math.random после теста
     - Полностью устраняет flakiness из-за недетерминированного timing
+  - Использует Jest module alias `@/lib/logger` вместо относительного пути
+  - Соответствие Jest configuration в `jest.config.js` (moduleNameMapper: ^@/(.*)$ → <rootDir>/$1)
   - Файл: `app/lib/db.spec.ts`
 
 ### Исправлено
@@ -132,10 +134,10 @@
   - Файл: `worker/worker.ts`, инициализация worker
 
 - **Worker: Защищенное чтение checkpoint в catch блоке**
-  - Обернут `getVideoCheckpoint` в try-catch внутри основного catch блока
+  - Упрощена обработка: `getVideoCheckpoint` сам возвращает `null` при ошибке, не выбрасывая исключение
+  - `getNextStep(null)` безопасно возвращает `'script'` как fallback
+  - Удалена избыточная обработка ошибок (inner try-catch), оставлен только вызов
   - Предотвращает маскировку оригинальной ошибки при недоступности Redis
-  - Fallback на `failedStep = 'unknown'` при ошибке чтения checkpoint
-  - Логируется warning с деталями ошибки чтения checkpoint
   - Гарантирует выполнение user notifications и DB updates даже при сбое Redis
   - Файл: `worker/worker.ts`, error handling в catch блоке
 
@@ -196,6 +198,16 @@
 - **Database: Улучшена документация `withRetry`**
   - Добавлены JSDoc комментарии с описанием параметров
   - Добавлен пример использования в @example секции
+  - Документация описывает exponential backoff и jitter mechanism
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
+
+- **Database: Исправлена граница retry loop в `withRetry`**
+  - Введена константа `attemptsAllowed = Math.max(1, maxRetries)` для устранения рассинхронизации
+  - Loop condition и stop condition теперь используют одну переменную (`attemptsAllowed`)
+  - Исправлен edge case: при `maxRetries=0` не должно быть бесполезных backoff задержек
+  - Изменено имя log field с `delayMs` на `backoffMs` для большей ясности
+  - Консистентное использование retry границ во всех частях функции
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
   - Добавлена @future заметка о возможных перегрузках функции
   - Упомянута возможность custom retryable codes или predicate функции
   - Файл: `app/lib/db.ts`, функция `withRetry()`
