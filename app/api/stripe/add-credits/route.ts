@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/db";
 import { getCreditsForPriceId } from "@/lib/creditMapping";
-import { CreditTransactionType } from "@prisma/client";
+import { CreditTransactionType, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
@@ -27,8 +27,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
         }
 
-        // Retrieve the checkout session from Stripe
-        const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
+        // Retrieve the checkout session from Stripe with line_items expanded
+        // This allows us to verify priceId from server-trusted data (line_items)
+        // rather than relying solely on client-provided metadata
+        const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId, {
+            expand: ['line_items.data.price'],
+        });
 
         // Verify the session belongs to this user
         if (checkoutSession.metadata?.userId !== session.user.id) {
@@ -40,7 +44,10 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Payment not completed" }, { status: 400 });
         }
 
-        const priceId = checkoutSession.metadata?.priceId;
+        // Prefer server-trusted priceId from line_items, fallback to metadata if needed
+        // This hardens against potential metadata tampering
+        const linePriceId = checkoutSession?.line_items?.data?.[0]?.price?.id as string | undefined;
+        const priceId = linePriceId ?? checkoutSession.metadata?.priceId;
 
         // Get credit amount using shared helper (keeps amounts in sync with webhook)
         const creditsToAdd = getCreditsForPriceId(priceId);
@@ -104,10 +111,13 @@ export async function POST(req: Request) {
                 creditsAdded: creditsToAdd,
                 newBalance: updatedUser.credits
             });
-        } catch (transactionError: any) {
+        } catch (transactionError: unknown) {
+            // Type-safe error narrowing for Prisma errors
+            const isKnownError = transactionError instanceof Prisma.PrismaClientKnownRequestError;
+            
             // Handle race condition: if another concurrent request already created the transaction
             // (Prisma P2002 = unique constraint violation on stripeSessionId)
-            if (transactionError.code === 'P2002') {
+            if (isKnownError && transactionError.code === 'P2002') {
                 // Transaction was already processed by concurrent request - fetch current user state
                 const currentUser = await prisma.user.findUnique({
                     where: { id: session.user.id },

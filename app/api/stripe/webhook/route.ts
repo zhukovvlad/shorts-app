@@ -2,8 +2,8 @@ import { prisma } from "@/app/lib/db";
 import { getCreditsForPriceId } from "@/lib/creditMapping";
 import Stripe from "stripe";
 
-// Import enum from generated Prisma client
-import { CreditTransactionType } from "@prisma/client";
+// Import enum and error types from generated Prisma client
+import { CreditTransactionType, Prisma } from "@prisma/client";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-08-27.basil',
@@ -63,11 +63,20 @@ export async function POST(req: Request) {
                     },
                 });
             });
-        } catch (transactionError: any) {
+        } catch (transactionError: unknown) {
+            // Type-safe error narrowing for Prisma errors
+            const isKnownError = transactionError instanceof Prisma.PrismaClientKnownRequestError;
+            
             // Handle race condition: concurrent webhook processing
             // (Prisma P2002 = unique constraint violation on stripeSessionId)
-            if (transactionError.code === 'P2002') {
+            if (isKnownError && transactionError.code === 'P2002') {
                 // Transaction already processed by concurrent webhook - this is OK
+                return new Response('Ok', { status: 200 });
+            }
+
+            // Handle record not found (P2025 - user deleted between checkout and webhook)
+            if (isKnownError && transactionError.code === 'P2025') {
+                console.log('[webhook] Record not found, treating as no-op');
                 return new Response('Ok', { status: 200 });
             }
 

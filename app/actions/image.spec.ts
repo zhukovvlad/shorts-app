@@ -5,61 +5,9 @@
  * Tests cover all edge cases and different output structures.
  */
 
+import { extractUrlFromValue } from './image';
+
 describe('extractUrlFromValue (image.ts)', () => {
-  // Helper function type signature (extracted from image.ts)
-  type ExtractUrlFromValue = (value: any) => string | null;
-
-  // Mock implementation for testing purposes
-  const extractUrlFromValue: ExtractUrlFromValue = (value: any): string | null => {
-    if (typeof value === 'string') {
-      return value;
-    }
-    if (value && typeof value === 'object') {
-      // СНАЧАЛА проверяем value.url как строку или объект (до проверки функции)
-      if (value.url !== undefined) {
-        // Случай 1: { url: "https://..." }
-        if (typeof value.url === 'string') {
-          return value.url;
-        }
-        // Случай 2: { url: { href: "..." } }
-        if (typeof value.url === 'object' && value.url !== null && value.url.href) {
-          if (typeof value.url.href === 'string') {
-            return value.url.href;
-          }
-        }
-        // Случай 3: { url: () => ... } - метод url()
-        if (typeof value.url === 'function') {
-          const urlResult = value.url();
-          // url() может вернуть строку или объект с href
-          if (typeof urlResult === 'string') {
-            return urlResult;
-          }
-          if (urlResult && typeof urlResult === 'object' && urlResult.href) {
-            return urlResult.href;
-          }
-        }
-      }
-      // Проверяем свойство href напрямую
-      if (value.href && typeof value.href === 'string') {
-        return value.href;
-      }
-      // Проверяем свойство output
-      if (value.output) {
-        // output может быть строкой, массивом или объектом
-        if (typeof value.output === 'string') {
-          return value.output;
-        }
-        if (Array.isArray(value.output) && value.output.length > 0) {
-          return extractUrlFromValue(value.output[0]);
-        }
-        if (typeof value.output === 'object') {
-          return extractUrlFromValue(value.output);
-        }
-      }
-    }
-    return null;
-  };
-
   describe('String input', () => {
     it('should return string URL directly', () => {
       const url = 'https://example.com/image.png';

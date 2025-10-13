@@ -40,11 +40,52 @@ describe('creditMapping', () => {
       expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPIj2Vct6k')).toBe(100);
     });
 
+    it('should use ENTERPRISE override when set', () => {
+      process.env.CREDITS_ENTERPRISE = '250';
+      
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPIj2Vct6k')).toBe(250);
+      // Unchanged (no override)
+      expect(getCreditsForPriceId('price_1SA7VoFbnWkjMFsPB9IvRYWg')).toBe(2);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPK7dLbJdu')).toBe(50);
+    });
+
+    it('should trim whitespace from environment variable values', () => {
+      process.env.CREDITS_STARTER = '  7  ';
+      process.env.CREDITS_PRO = '  75  ';
+      process.env.CREDITS_ENTERPRISE = '  150  ';
+      
+      expect(getCreditsForPriceId('price_1SA7VoFbnWkjMFsPB9IvRYWg')).toBe(7);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPK7dLbJdu')).toBe(75);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPIj2Vct6k')).toBe(150);
+    });
+
+    it('should handle whitespace-only values as invalid', () => {
+      process.env.CREDITS_STARTER = '   ';
+      process.env.CREDITS_PRO = '\t\t';
+      
+      // Should fallback to defaults
+      expect(getCreditsForPriceId('price_1SA7VoFbnWkjMFsPB9IvRYWg')).toBe(2);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPK7dLbJdu')).toBe(50);
+    });
+
     it('should fallback to default if env var is invalid', () => {
       process.env.CREDITS_STARTER = 'invalid';
       process.env.CREDITS_PRO = '-5';
       process.env.CREDITS_ENTERPRISE = '0';
       
+      expect(getCreditsForPriceId('price_1SA7VoFbnWkjMFsPB9IvRYWg')).toBe(2);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPK7dLbJdu')).toBe(50);
+      expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPIj2Vct6k')).toBe(100);
+    });
+
+    it('should reject zero and negative values to prevent misconfiguration', () => {
+      // Setting credits to "0" would disable the plan, which could be a mistake
+      // To intentionally disable a plan, remove it from CREDIT_PLANS instead
+      process.env.CREDITS_STARTER = '0';
+      process.env.CREDITS_PRO = '-10';
+      process.env.CREDITS_ENTERPRISE = '-1';
+      
+      // All fall back to defaults (prevents accidental disabling)
       expect(getCreditsForPriceId('price_1SA7VoFbnWkjMFsPB9IvRYWg')).toBe(2);
       expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPK7dLbJdu')).toBe(50);
       expect(getCreditsForPriceId('price_1SA7YQFbnWkjMFsPIj2Vct6k')).toBe(100);

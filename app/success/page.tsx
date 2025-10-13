@@ -13,8 +13,9 @@ const SuccessContent = () => {
     const [isProcessing, setIsProcessing] = useState(true);
     const [creditsAdded, setCreditsAdded] = useState<number | null>(null);
     const [isPendingWebhook, setIsPendingWebhook] = useState(false);
-    // Use Map to track processed sessions by sessionId (allows different sessionIds in same tab)
-    const processedSessions = useRef<Map<string, boolean>>(new Map());
+    const [alreadyProcessed, setAlreadyProcessed] = useState(false);
+    // Track processed sessionIds (allows different sessionIds in same tab)
+    const processedSessions = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!sessionId) {
@@ -27,7 +28,7 @@ const SuccessContent = () => {
             return;
         }
 
-        processedSessions.current.set(sessionId, true);
+        processedSessions.current.add(sessionId);
 
         // Call API to add credits
         const addCredits = async () => {
@@ -49,7 +50,7 @@ const SuccessContent = () => {
                         toast.success(`${data.creditsAdded} credits added to your account!`);
                     } else {
                         // Already processed (idempotency or webhook beat us)
-                        setIsPendingWebhook(true);
+                        setAlreadyProcessed(true);
                         toast.info("Payment confirmed! Credits already added.");
                     }
                 } else {
@@ -85,19 +86,23 @@ const SuccessContent = () => {
 
                 <div className="space-y-3">
                     <h1 className="text-3xl font-bold text-white">
-                        {isProcessing ? "Processing payment..." : "Payment successful!"}
+                        {isProcessing ? "Processing payment..." : sessionId ? "Payment successful!" : "No checkout session found"}
                     </h1>
                     <p className="text-gray-300 text-base">
                         {isProcessing 
                             ? "Please wait while we add credits to your account..."
-                            : isPendingWebhook
-                                ? "Your payment was successful. Credits will be added to your account within a few moments via our webhook system."
-                                : creditsAdded && creditsAdded > 0
-                                    ? `${creditsAdded} credits have been added to your account.`
-                                    : "Credits have been successfully added to your account."
+                            : alreadyProcessed
+                                ? "Credits already added to your account."
+                                : isPendingWebhook
+                                    ? "Your payment was successful. Credits will be added to your account within a few moments via our webhook system."
+                                    : creditsAdded && creditsAdded > 0
+                                        ? `${creditsAdded} credits have been added to your account.`
+                                        : sessionId
+                                            ? "Credits have been successfully added to your account."
+                                            : "We could not find a Stripe checkout session. If you completed a payment, please open the link from your email or return to the dashboard."
                         }
                         {" "}
-                        {!isProcessing && "You can continue with your video creation."}
+                        {!isProcessing && sessionId && "You can continue with your video creation."}
                     </p>
                 </div>
 
