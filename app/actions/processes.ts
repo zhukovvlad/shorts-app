@@ -176,8 +176,11 @@ export const processVideo = async (videoId: string, userId: string) => {
     try {
       const checkpoint = await getVideoCheckpoint(videoId);
       failedStep = getNextStep(checkpoint);
-    } catch {
+    } catch (checkpointError) {
       logger.warn('Failed to read checkpoint for error handling, using fallback logic');
+      logger.debug('Checkpoint read error details', {
+        error: checkpointError instanceof Error ? checkpointError.message : String(checkpointError)
+      });
       // Определяем шаг по тексту ошибки как fallback
       const errorMessage = error instanceof Error ? error.message : '';
       if (errorMessage.includes('script') || errorMessage.includes('openai')) {

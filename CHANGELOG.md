@@ -5,6 +5,117 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2025-10-13
+
+### Исправлено
+- **Code Review: CreditTransaction schema improvements**
+  - Добавлена foreign key связь с User model (onDelete: Cascade)
+  - Заменен String тип поля `type` на enum `CreditTransactionType` (CREDIT | DEBIT)
+  - Улучшена целостность данных и типизация транзакций
+  - Обновлены webhook и add-credits endpoints для использования enum значений
+  - Схема: `prisma/schema.prisma`, использование: `app/api/stripe/webhook/route.ts`, `app/api/stripe/add-credits/route.ts`
+
+- **Code Review: DashboardEmptyState props**
+  - Удален неиспользуемый параметр `totalVideos` из интерфейса `EmptyStateProps`
+  - Убран проброс `totalVideos` при вызове компонента в dashboard
+  - Улучшена читаемость кода
+
+- **Code Review: Webhook idempotency и credit mapping**
+  - Исправлена идемпотентность webhook handler для предотвращения двойного начисления при retry от Stripe
+  - Добавлена проверка существующей `CreditTransaction` перед обработкой webhook
+  - Реализована атомарная транзакция: increment credits + create CreditTransaction (оба действия или ни одного)
+  - Webhook записывает `CreditTransaction` с уникальным `stripeSessionId` для координации с manual add-credits
+  - Webhook теперь безопасен при повторных вызовах от Stripe и не конфликтует с manual API
+
+- **Code Review: Race condition в concurrent requests**
+  - Добавлена обработка Prisma P2002 ошибки (unique constraint violation) в `add-credits` и `webhook`
+  - При конкурентных запросах второй запрос не возвращает 500, а успешно завершается с актуальным балансом
+  - Гарантия идемпотентности даже между моментом проверки `existingTransaction` и созданием транзакции
+  - Кредиты начисляются строго один раз, даже при race condition
+
+- **Code Review: Success page sessionId tracking и messaging**
+  - Изменен guard с простого boolean на Map по sessionId
+  - Теперь разные sessionId могут обрабатываться в одной вкладке браузера
+  - Улучшен UI messaging при fallback на webhook (честное сообщение вместо вводящего в заблуждение)
+  - Добавлен state `isPendingWebhook` для отображения корректного статуса
+  - Различные toast уведомления для успеха, idempotency и fallback на webhook
+
+- **Code Review: Prisma version mismatch**
+  - Синхронизированы версии `@prisma/client` (^6.16.1) и `prisma` CLI (^6.16.1)
+  - Ранее prisma CLI была версии ^6.15.0, что могло привести к несовместимости
+  - Перегенерирован Prisma Client с правильной версией
+
+- **Code Review: Логирование ошибок checkpoint**
+  - Добавлено логирование деталей ошибки при чтении checkpoint в error handling
+  - Теперь при fallback логике сохраняются детали ошибки для debugging
+  - Улучшена отладка проблем с Redis/checkpoint системой
+
+- **Code Review: Семантические кавычки в JSX**
+  - Заменены HTML entities `&quot;` на семантический тег `<q>` в terms и privacy pages
+  - Улучшена семантика HTML для locale-aware отображения кавычек
+  - Файлы: `app/terms/page.tsx`, `app/privacy/page.tsx`
+
+- **Code Review: Stripe checkout URL нормализация и валидация**
+  - Добавлена нормализация trailing slashes в `getBaseUrl()` для предотвращения двойных слешей
+  - Добавлена валидация `priceId` перед созданием Stripe session (type check + allow-list)
+  - Защита от неверных price IDs, SQL injection и XSS попыток
+  - Fail-fast подход: ошибки валидации возвращаются до вызова Stripe API
+  - 23 unit теста для URL нормализации, валидации и security
+
+### Добавлено
+- **Общий credit mapping helper** (`lib/creditMapping.ts`)
+  - Централизованная конфигурация для всех операций с кредитами
+  - Поддержка переопределения через environment variables (`CREDITS_STARTER`, `CREDITS_PRO`, `CREDITS_ENTERPRISE`)
+  - Функции `getCreditsForPriceId()` и `getCreditMap()` для единообразной работы с кредитами
+  - Полное покрытие unit тестами (8/8 passing)
+
+- **Unit тесты для extractUrlFromValue** (`app/actions/image.spec.ts`)
+  - 31 comprehensive тест для критической функции извлечения URL из Replicate outputs
+  - Покрытие всех форматов: string, object with url, href, output, nested structures
+  - Тесты приоритетов, edge cases, и реальных форматов от моделей (flux-schnell, stable-diffusion, DALL-E, Midjourney)
+  - Защита от регрессий при изменении форматов output от моделей
+
+- **Документация Stripe Payment Flow** (`docs/STRIPE_PAYMENT_FLOW.md`)
+  - Подробное описание координации между webhook и manual API
+  - Диаграммы всех сценариев (webhook first, manual first, race condition)
+  - Объяснение механизмов безопасности (idempotency, atomicity, P2002 handling)
+  - Troubleshooting guide для отладки проблем с платежами
+
+- **Unit тесты для Stripe checkout** (`app/api/stripe/checkout/route.spec.ts`)
+  - 23 теста для getBaseUrl URL нормализации (trailing slashes, env vars, fallbacks)
+  - Тесты priceId валидации (type checking, allow-list, SQL injection, XSS защита)
+  - Security considerations и error response тесты
+  - Документация валидации и security практик через тесты
+
+### Изменено
+- **Webhook Handler** (`app/api/stripe/webhook/route.ts`)
+  - Использует общий credit mapping вместо hardcoded значений
+  - Добавлена проверка идемпотентности через `CreditTransaction.stripeSessionId` (предотвращает двойное начисление)
+  - Атомарная транзакция: `user.credits` increment + `CreditTransaction` create в одной транзакции
+  - Валидация `userId`, `sessionId` и `creditsToAdd` перед обработкой
+  - Возвращает 200 OK для невалидных запросов (предотвращает retry loops)
+  - Try-catch для обработки P2002 при concurrent webhook processing
+  - **Полная идемпотентность**: webhook и add-credits используют одну таблицу `CreditTransaction` для координации
+
+- **Manual Credit Handler** (`app/api/stripe/add-credits/route.ts`)
+  - Теперь использует общий credit mapping helper
+  - Синхронизировано с webhook handler
+  - Предотвращает расхождения в суммах кредитов между handlers
+  - Try-catch для обработки P2002 при concurrent API calls
+  - При P2002 возвращает актуальный баланс пользователя вместо ошибки
+
+- **Success Page** (`app/success/page.tsx`)
+  - Guard теперь использует Map<sessionId, boolean> вместо простого boolean
+  - Разные payment sessions могут обрабатываться в одной вкладке
+  - Честные сообщения пользователю о статусе обработки кредитов
+  - Отдельный UI state для webhook fallback сценария
+
+- **Stripe Checkout** (`app/api/stripe/checkout/route.ts`)
+  - Нормализация URL: trim trailing slashes для предотвращения двойных слешей
+  - Валидация priceId: type check + allow-list проверка перед Stripe API
+  - Использует CREDIT_PLANS для allow-list валидации (single source of truth)
+  - Улучшенные error responses с деталями для debugging
+
 ## [1.6.1] - 2025-10-13
 
 ### Исправлено

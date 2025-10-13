@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/app/lib/db";
+import { getCreditsForPriceId } from "@/lib/creditMapping";
+import { CreditTransactionType } from "@prisma/client";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
@@ -40,14 +42,8 @@ export async function POST(req: Request) {
 
         const priceId = checkoutSession.metadata?.priceId;
 
-        // Credit amounts configurable via environment variables
-        const creditMap: Record<string, number> = {
-            'price_1SA7VoFbnWkjMFsPB9IvRYWg': parseInt(process.env.CREDITS_STARTER || '2'),
-            'price_1SA7YQFbnWkjMFsPK7dLbJdu': parseInt(process.env.CREDITS_PRO || '50'),
-            'price_1SA7YQFbnWkjMFsPIj2Vct6k': parseInt(process.env.CREDITS_ENTERPRISE || '100')
-        };
-
-        const creditsToAdd = creditMap[priceId || ''] || 0;
+        // Get credit amount using shared helper (keeps amounts in sync with webhook)
+        const creditsToAdd = getCreditsForPriceId(priceId);
 
         if (creditsToAdd === 0) {
             return NextResponse.json({ error: "Invalid priceId" }, { status: 400 });
@@ -78,35 +74,57 @@ export async function POST(req: Request) {
         }
 
         // Add credits and record transaction in a single transaction to ensure atomicity
-        const updatedUser = await prisma.$transaction(async (tx) => {
-            // Add credits
-            const user = await tx.user.update({
-                where: { id: session.user.id },
-                data: {
-                    credits: {
-                        increment: creditsToAdd
+        try {
+            const updatedUser = await prisma.$transaction(async (tx) => {
+                // Add credits
+                const user = await tx.user.update({
+                    where: { id: session.user.id },
+                    data: {
+                        credits: {
+                            increment: creditsToAdd
+                        }
                     }
-                }
+                });
+
+                // Record the transaction
+                await tx.creditTransaction.create({
+                    data: {
+                        stripeSessionId: sessionId,
+                        userId: session.user.id,
+                        amount: creditsToAdd,
+                        type: CreditTransactionType.CREDIT
+                    }
+                });
+
+                return user;
             });
 
-            // Record the transaction
-            await tx.creditTransaction.create({
-                data: {
-                    stripeSessionId: sessionId,
-                    userId: session.user.id,
-                    amount: creditsToAdd,
-                    type: 'CREDIT'
-                }
+            return NextResponse.json({
+                success: true,
+                creditsAdded: creditsToAdd,
+                newBalance: updatedUser.credits
             });
+        } catch (transactionError: any) {
+            // Handle race condition: if another concurrent request already created the transaction
+            // (Prisma P2002 = unique constraint violation on stripeSessionId)
+            if (transactionError.code === 'P2002') {
+                // Transaction was already processed by concurrent request - fetch current user state
+                const currentUser = await prisma.user.findUnique({
+                    where: { id: session.user.id },
+                    select: { credits: true }
+                });
 
-            return user;
-        });
+                return NextResponse.json({
+                    success: true,
+                    creditsAdded: 0,
+                    newBalance: currentUser?.credits ?? user.credits,
+                    message: "Credits already added for this session (concurrent request)"
+                });
+            }
 
-        return NextResponse.json({
-            success: true,
-            creditsAdded: creditsToAdd,
-            newBalance: updatedUser.credits
-        });
+            // Re-throw other transaction errors
+            throw transactionError;
+        }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to add credits";
         console.error('[add-credits] Error:', error);

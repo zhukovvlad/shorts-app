@@ -128,7 +128,6 @@ const Dashboard = async ({
           {processingVideos.length > 0 && (
             <DashboardEmptyState 
               variant="mixed"
-              totalVideos={videos.length}
               processingCount={processingVideos.length}
             />
           )}
