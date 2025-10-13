@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { Worker, Job } from "bullmq";
+import { Worker, Job, UnrecoverableError } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
 import { prisma, withRetry } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
@@ -180,12 +180,22 @@ const worker = new Worker('video-processing', async (job: Job) => {
         });
 
         // Получаем checkpoint для определения проблемного шага
-        const checkpoint = await getVideoCheckpoint(videoId);
-        const failedStep = getNextStep(checkpoint);
+        // Защищаем от ошибок Redis, чтобы не маскировать оригинальную ошибку
+        let failedStep = 'unknown';
+        try {
+            const checkpoint = await getVideoCheckpoint(videoId);
+            failedStep = getNextStep(checkpoint);
+        } catch (checkpointError) {
+            logger.warn('Failed to read checkpoint after error', {
+                videoId,
+                error: checkpointError instanceof Error ? checkpointError.message : String(checkpointError)
+            });
+        }
         
         // Определяем, стоит ли делать ретрай
         const attemptNumber = attemptsMade + 1;
-        const shouldRetry = attemptNumber < maxAttempts && isRetryableError(error);
+        const isRetryable = isRetryableError(error);
+        const shouldRetry = attemptNumber < maxAttempts && isRetryable;
         
         if (shouldRetry) {
             logger.info('Will retry from step', {
@@ -241,6 +251,14 @@ const worker = new Worker('video-processing', async (job: Job) => {
             );
         }
 
+        // Для non-retryable ошибок используем UnrecoverableError,
+        // чтобы BullMQ не делал дополнительных попыток
+        if (!isRetryable) {
+            throw new UnrecoverableError(
+                error instanceof Error ? error.message : String(error)
+            );
+        }
+
         throw error;
     }
 }, { 
@@ -266,7 +284,6 @@ worker.on('error', (err) => {
 })
 
 logger.info('Worker started, waiting for jobs', { version: '2' });
-logger.debug('Connected to Redis'); // Downgrade to debug - уже логируется в 'connect' event
 
 // Тестируем подключение к Redis при старте
 testRedisConnection().then(success => {

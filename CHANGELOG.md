@@ -18,13 +18,32 @@
   - Type-safe реализация с proper error type checking
   - Файл: `app/lib/db.ts`, функция `withRetry()`
 
-- **Database: Comprehensive тесты для `withRetry`**
-  - 22 test cases покрывают все сценарии:
-    - Успешные операции (первая попытка, разные типы возвращаемых значений)
-    - Retryable ошибки (P1001, P1008, P1017 для KnownRequestError и InitializationError)
-    - Non-retryable ошибки (P2002, P2025, ValidationError, generic Error)
-    - Retry behavior (exponential backoff, custom maxRetries, exhausted retries)
-    - Edge cases (null, undefined, non-Error rejections)
+- **Database: Helper функция `isPrismaRetryable` для переиспользования**
+  - Экспортируется из `app/lib/db.ts` для использования в других модулях (worker, API routes)
+  - Проверяет, является ли ошибка Prisma временной (retryable)
+  - Поддерживает оба типа: `PrismaClientKnownRequestError` и `PrismaClientInitializationError`
+  - Retryable коды: P1001 (can't reach DB), P1008 (timeout), P1017 (connection closed)
+  - Консистентная логика проверки ошибок в разных частях приложения
+  - Полное JSDoc описание с примерами использования
+  - Файл: `app/lib/db.ts`, функция `isPrismaRetryable()`
+
+- **Database: Comprehensive тесты для `withRetry` и `isPrismaRetryable`**
+  - 34 test cases (было 22, добавлено 12 для `isPrismaRetryable`):
+    - **isPrismaRetryable (12 tests):**
+      - Retryable ошибки (6 tests): P1001/P1008/P1017 для обоих типов Prisma ошибок
+      - Non-retryable ошибки (6 tests): P2002, P2025, P1012, ValidationError, generic Error, non-Error values
+    - **withRetry (22 tests):**
+      - Успешные операции (первая попытка, разные типы возвращаемых значений)
+      - Retryable ошибки (P1001, P1008, P1017 для KnownRequestError и InitializationError)
+      - Non-retryable ошибки (P2002, P2025, ValidationError, generic Error)
+      - Retry behavior (exponential backoff, custom maxRetries, exhausted retries)
+      - Edge cases (null, undefined, non-Error rejections)
+  - Детерминированный timing test для exponential backoff:
+    - Использует `jest.useFakeTimers()` для предсказуемого поведения
+    - Мокирует `Math.random()` для устранения jitter (возвращает 0)
+    - Использует `jest.runAllTimersAsync()` для симуляции задержек
+    - Восстанавливает реальные timers и Math.random после теста
+    - Полностью устраняет flakiness из-за недетерминированного timing
   - Файл: `app/lib/db.spec.ts`
 
 ### Исправлено
@@ -112,6 +131,32 @@
   - Снижает шум в production логах
   - Файл: `worker/worker.ts`, инициализация worker
 
+- **Worker: Защищенное чтение checkpoint в catch блоке**
+  - Обернут `getVideoCheckpoint` в try-catch внутри основного catch блока
+  - Предотвращает маскировку оригинальной ошибки при недоступности Redis
+  - Fallback на `failedStep = 'unknown'` при ошибке чтения checkpoint
+  - Логируется warning с деталями ошибки чтения checkpoint
+  - Гарантирует выполнение user notifications и DB updates даже при сбое Redis
+  - Файл: `worker/worker.ts`, error handling в catch блоке
+
+- **Worker: UnrecoverableError для non-retryable ошибок**
+  - Добавлен import `UnrecoverableError` из BullMQ
+  - Выделена переменная `isRetryable` для явной проверки типа ошибки
+  - Non-retryable ошибки выбрасываются как `UnrecoverableError`
+  - Предотвращает дополнительные retry attempts BullMQ для non-retryable случаев
+  - Избегает inconsistent state при повторных попытках логических ошибок
+  - Retryable ошибки по-прежнему выбрасываются как обычные Error для повторов
+  - Файл: `worker/worker.ts`, error handling в catch блоке
+
+- **Документация: Обновлены code samples для event handlers**
+  - Обновлен код `uncaughtException` handler: передается error в gracefulShutdown
+  - Обновлен код `unhandledRejection` handler: передается reason (или true) в gracefulShutdown
+  - Добавлено логирование `stack` trace для обоих обработчиков
+  - Добавлена type annotation `reason: unknown` для unhandledRejection
+  - Код samples теперь полностью соответствуют реализации в `worker/worker.ts`
+  - Файл: `docs/WORKER_DB_CONNECTION_FIX.md`, раздел "Добавлены дополнительные обработчики событий"
+  - Файл: `worker/worker.ts`, error handling в catch блоке
+
 - **Документация: Обновлен код sample в WORKER_DB_CONNECTION_FIX.md**
   - Добавлен JSDoc для `gracefulShutdown` с описанием параметра `fatalError`
   - Добавлен комментарий о двух условиях для `hadError = true`
@@ -133,6 +178,20 @@
   - Обновлен JSDoc с полным списком кодов: P1001, P1008, P1017
   - Улучшена обработка connection timeouts при старте приложения
   - Файл: `app/lib/db.ts`, функция `withRetry()`
+
+- **Database: Рефакторинг `withRetry` для использования `isPrismaRetryable` helper**
+  - Извлечена логика проверки retryable ошибок в отдельный helper `isPrismaRetryable`
+  - `withRetry` теперь использует `isPrismaRetryable(error)` вместо дублирования логики
+  - Упрощена функция `withRetry`: проверка retryable вынесена, остался только backoff
+  - Улучшена читаемость и maintainability кода
+  - Консистентная проверка ошибок между `withRetry` и другими модулями
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
+
+- **Worker: Удален redundant debug лог "Connected to Redis"**
+  - Удален `logger.debug('Connected to Redis')` при инициализации worker
+  - Лог дублировался с сообщением из 'connect' event handler
+  - Снижен шум в логах без потери информации
+  - Файл: `worker/worker.ts`, инициализация worker
 
 - **Database: Улучшена документация `withRetry`**
   - Добавлены JSDoc комментарии с описанием параметров

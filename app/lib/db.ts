@@ -87,6 +87,45 @@ if (!globalForPrisma.hasBeforeExitHandler) {
 }
 
 /**
+ * Проверяет, является ли ошибка Prisma retryable (временной).
+ * Может использоваться в других модулях для консистентной обработки Prisma ошибок.
+ * 
+ * Retryable коды:
+ * - P1001: Can't reach database server
+ * - P1008: Operations timed out
+ * - P1017: Server has closed the connection
+ * 
+ * @param error - Ошибка для проверки
+ * @returns true если ошибка временная и можно сделать retry
+ * 
+ * @example
+ * ```typescript
+ * try {
+ *   await prisma.user.create({ ... });
+ * } catch (error) {
+ *   if (isPrismaRetryable(error)) {
+ *     // Можно повторить операцию
+ *   } else {
+ *     // Логическая ошибка, retry бесполезен
+ *   }
+ * }
+ * ```
+ */
+export function isPrismaRetryable(error: unknown): boolean {
+	// Определяем код ошибки из разных типов Prisma ошибок
+	let code: string | undefined;
+	
+	if (error instanceof Prisma.PrismaClientKnownRequestError) {
+		code = error.code;
+	} else if (error instanceof Prisma.PrismaClientInitializationError) {
+		code = error.errorCode;
+	}
+	
+	// Retryable коды: проблемы подключения, таймауты, закрытые соединения
+	return code === 'P1001' || code === 'P1008' || code === 'P1017';
+}
+
+/**
  * Обертка для database операций с автоматическими retry при transient ошибках.
  * Обрабатывает временные проблемы подключения и инициализации:
  * - P1001: Can't reach database server
@@ -122,16 +161,16 @@ export async function withRetry<T>(
 		} catch (error: unknown) {
 			lastError = error;
 			
-			// Определяем код ошибки из разных типов Prisma ошибок
+			// Используем helper для проверки retryable ошибок
+			const retryable = isPrismaRetryable(error);
+			
+			// Извлекаем код для логирования
 			let code: string | undefined;
 			if (error instanceof Prisma.PrismaClientKnownRequestError) {
 				code = error.code;
 			} else if (error instanceof Prisma.PrismaClientInitializationError) {
 				code = error.errorCode;
 			}
-			
-			// Retryable коды: проблемы подключения, таймауты, закрытые соединения
-			const retryable = code === 'P1001' || code === 'P1008' || code === 'P1017';
 
 			if (attempt === maxRetries || !retryable) {
 				throw error;
