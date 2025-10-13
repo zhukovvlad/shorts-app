@@ -1,7 +1,7 @@
 import Redis from "ioredis";
 import { Worker, Job } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
-import { prisma } from "@/app/lib/db";
+import { prisma, withRetry } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
 import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 import { workerLogger as logger } from "@/lib/logger";
@@ -84,11 +84,13 @@ const worker = new Worker('video-processing', async (job: Job) => {
         logger.info('Starting new job', { videoId });
     }
 
-    // Получаем userId из базы данных
-    const video = await prisma.video.findUnique({
-        where: { videoId },
-        select: { userId: true }
-    });
+    // Получаем userId из базы данных с retry механизмом для transient ошибок
+    const video = await withRetry(() => 
+        prisma.video.findUnique({
+            where: { videoId },
+            select: { userId: true }
+        })
+    );
 
     if (!video) {
         throw new Error(`Video with ID ${videoId} not found`);
@@ -198,13 +200,15 @@ const worker = new Worker('video-processing', async (job: Job) => {
 
         // Обновляем БД только если это финальная ошибка
         if (!shouldRetry) {
-            await prisma.video.update({
-                where: { videoId },
-                data: {
-                    processing: false,
-                    failed: true,
-                }
-            });
+            await withRetry(() => 
+                prisma.video.update({
+                    where: { videoId },
+                    data: {
+                        processing: false,
+                        failed: true,
+                    }
+                })
+            );
         }
 
         throw error;
@@ -257,23 +261,43 @@ const gracefulShutdown = async (signal: string) => {
   isShuttingDown = true;
   logger.info('Graceful shutdown initiated', { signal });
   
+  // Best-effort закрытие всех ресурсов (не прерываем на первой ошибке)
+  let hadError = false;
+  
+  // Закрываем Worker
   try {
     await worker.close();
     logger.info('Worker closed successfully');
-    
+  } catch (error) {
+    hadError = true;
+    logger.error('Error closing worker', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+  
+  // Закрываем Redis
+  try {
     await connection.quit();
     logger.info('Redis connection closed successfully');
-    
+  } catch (error) {
+    hadError = true;
+    logger.error('Error closing Redis', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+  
+  // Закрываем Prisma
+  try {
     await prisma.$disconnect();
     logger.info('Prisma connection closed successfully');
-    
-    process.exit(0);
   } catch (error) {
-    logger.error('Error during graceful shutdown', {
-      error: error instanceof Error ? error.message : String(error)
+    hadError = true;
+    logger.error('Error closing Prisma', { 
+      error: error instanceof Error ? error.message : String(error) 
     });
-    process.exit(1);
   }
+  
+  process.exit(hadError ? 1 : 0);
 };
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
@@ -281,10 +305,18 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // Убираем beforeExit чтобы избежать конфликта с db.ts
 // process.on('beforeExit', () => gracefulShutdown('beforeExit'));
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception', { error: error.message });
+  logger.error('Uncaught exception', { 
+    message: error.message,
+    stack: error.stack
+  });
   gracefulShutdown('uncaughtException');
 });
-process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled rejection', { reason });
+process.on('unhandledRejection', (reason: unknown) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  logger.error('Unhandled rejection', { 
+    message: msg,
+    stack
+  });
   gracefulShutdown('unhandledRejection');
 });
