@@ -1,0 +1,88 @@
+import { auth } from "@/auth";
+import { prisma } from "@/app/lib/db";
+import { NextResponse } from "next/server";
+import Stripe from "stripe";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2025-08-27.basil',
+});
+
+/**
+ * Manually process credits after successful Stripe checkout.
+ * This is a workaround for local development where webhooks don't work.
+ * 
+ * For production, use webhook handler instead.
+ */
+export async function POST(req: Request) {
+    try {
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { sessionId } = await req.json();
+        if (!sessionId) {
+            return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+        }
+
+        // Retrieve the checkout session from Stripe
+        const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
+
+        // Verify the session belongs to this user
+        if (checkoutSession.metadata?.userId !== session.user.id) {
+            return NextResponse.json({ error: "Session mismatch" }, { status: 403 });
+        }
+
+        // Check if payment was successful
+        if (checkoutSession.payment_status !== 'paid') {
+            return NextResponse.json({ error: "Payment not completed" }, { status: 400 });
+        }
+
+        const priceId = checkoutSession.metadata?.priceId;
+
+        const creditMap: Record<string, number> = {
+            'price_1SA7VoFbnWkjMFsPB9IvRYWg': 2,      // Starter - 1 video
+            'price_1SA7YQFbnWkjMFsPK7dLbJdu': 50,    // Pro - 25 videos  
+            'price_1SA7YQFbnWkjMFsPIj2Vct6k': 100    // Enterprise - 150 videos
+        };
+
+        const creditsToAdd = creditMap[priceId || ''] || 0;
+
+        if (creditsToAdd === 0) {
+            return NextResponse.json({ error: "Invalid priceId" }, { status: 400 });
+        }
+
+        // Check if credits were already added for this session
+        // You might want to track this in DB to avoid double-crediting
+        const user = await prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { credits: true }
+        });
+
+        if (!user) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        // Add credits
+        const updatedUser = await prisma.user.update({
+            where: { id: session.user.id },
+            data: {
+                credits: {
+                    increment: creditsToAdd
+                }
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            creditsAdded: creditsToAdd,
+            newBalance: updatedUser.credits
+        });
+    } catch (error: any) {
+        console.error('[add-credits] Error:', error);
+        return NextResponse.json(
+            { error: error.message || "Failed to add credits" },
+            { status: 500 }
+        );
+    }
+}
