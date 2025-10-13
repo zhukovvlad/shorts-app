@@ -7,7 +7,6 @@ import Link from "next/link";
 
 interface EmptyStateProps {
   variant: 'no-videos' | 'all-processing' | 'mixed';
-  totalVideos?: number;
   processingCount?: number;
 }
 

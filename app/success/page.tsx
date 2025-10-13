@@ -12,7 +12,9 @@ const SuccessContent = () => {
     const sessionId = searchParams.get("session_id");
     const [isProcessing, setIsProcessing] = useState(true);
     const [creditsAdded, setCreditsAdded] = useState<number | null>(null);
-    const hasCalledApi = useRef(false);
+    const [isPendingWebhook, setIsPendingWebhook] = useState(false);
+    // Use Map to track processed sessions by sessionId (allows different sessionIds in same tab)
+    const processedSessions = useRef<Map<string, boolean>>(new Map());
 
     useEffect(() => {
         if (!sessionId) {
@@ -20,12 +22,12 @@ const SuccessContent = () => {
             return;
         }
 
-        // Prevent duplicate calls in React StrictMode
-        if (hasCalledApi.current) {
+        // Prevent duplicate calls for the same sessionId (React StrictMode protection)
+        if (processedSessions.current.has(sessionId)) {
             return;
         }
 
-        hasCalledApi.current = true;
+        processedSessions.current.set(sessionId, true);
 
         // Call API to add credits
         const addCredits = async () => {
@@ -39,15 +41,30 @@ const SuccessContent = () => {
                 const data = await response.json();
 
                 if (response.ok && data.success) {
+                    // Credits successfully added
                     setCreditsAdded(data.creditsAdded);
-                    toast.success(`${data.creditsAdded} credits added to your account!`);
+                    
+                    // Check if credits were actually added or already processed
+                    if (data.creditsAdded > 0) {
+                        toast.success(`${data.creditsAdded} credits added to your account!`);
+                    } else {
+                        // Already processed (idempotency or webhook beat us)
+                        setIsPendingWebhook(true);
+                        toast.info("Payment confirmed! Credits already added.");
+                    }
                 } else {
+                    // API failed - webhook will handle it
                     console.error("Failed to add credits:", data.error);
-                    toast.error("Credits will be added shortly via webhook");
+                    setIsPendingWebhook(true);
+                    setCreditsAdded(null);
+                    toast.info("Payment confirmed! Credits will be added via webhook shortly.");
                 }
             } catch (error) {
+                // Network error - webhook will handle it
                 console.error("Error adding credits:", error);
-                toast.error("Credits will be added shortly");
+                setIsPendingWebhook(true);
+                setCreditsAdded(null);
+                toast.info("Payment confirmed! Credits will be added shortly.");
             } finally {
                 setIsProcessing(false);
             }
@@ -73,11 +90,14 @@ const SuccessContent = () => {
                     <p className="text-gray-300 text-base">
                         {isProcessing 
                             ? "Please wait while we add credits to your account..."
-                            : creditsAdded 
-                                ? `${creditsAdded} credits have been added to your account.`
-                                : "Credits were successfully added to your account."
+                            : isPendingWebhook
+                                ? "Your payment was successful. Credits will be added to your account within a few moments via our webhook system."
+                                : creditsAdded && creditsAdded > 0
+                                    ? `${creditsAdded} credits have been added to your account.`
+                                    : "Credits have been successfully added to your account."
                         }
-                        {" "}You can continue with your video creation.
+                        {" "}
+                        {!isProcessing && "You can continue with your video creation."}
                     </p>
                 </div>
 

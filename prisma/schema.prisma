@@ -8,18 +8,24 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum CreditTransactionType {
+  CREDIT
+  DEBIT
+}
+
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  videos        Video[]
-  credits       Int       @default(1)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
+  id                 String              @id @default(cuid())
+  name               String?
+  email              String              @unique
+  emailVerified      DateTime?
+  image              String?
+  videos             Video[]
+  credits            Int                 @default(1)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  accounts           Account[]
+  sessions           Session[]
+  creditTransactions CreditTransaction[]
   
   @@map("User")
 }
@@ -83,12 +89,13 @@ model Video {
 }
 
 model CreditTransaction {
-  id               String   @id @default(cuid())
-  stripeSessionId  String   @unique
-  userId           String
-  amount           Int
-  type             String   // 'CREDIT' or other transaction types
-  createdAt        DateTime @default(now())
+  id              String                @id @default(cuid())
+  stripeSessionId String                @unique
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Int
+  type            CreditTransactionType
+  createdAt       DateTime              @default(now())
 
   @@index([userId])
   @@map("CreditTransaction")
