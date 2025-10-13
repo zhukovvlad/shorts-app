@@ -128,12 +128,20 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // beforeExit убран из worker, чтобы не конфликтовать с db.ts
 process.on('uncaughtException', (error) => { // ✅ ДОБАВЛЕНО
-  logger.error('Uncaught exception', { error: error.message });
-  gracefulShutdown('uncaughtException');
+  logger.error('Uncaught exception', { 
+    message: error.message,
+    stack: error.stack
+  });
+  gracefulShutdown('uncaughtException', error); // Передаем error как фатальную ошибку
 });
-process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
-  logger.error('Unhandled rejection', { reason });
-  gracefulShutdown('unhandledRejection');
+process.on('unhandledRejection', (reason: unknown) => { // ✅ ДОБАВЛЕНО
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? reason.stack : undefined;
+  logger.error('Unhandled rejection', { 
+    message: msg,
+    stack
+  });
+  gracefulShutdown('unhandledRejection', reason instanceof Error ? reason : true); // Передаем оригинальную ошибку или true
 });
 ```
 
@@ -222,4 +230,69 @@ Prisma использует connection pool, который нужно явно 
 - Worker явно вызывает `process.exit()` после cleanup
 - `beforeExit` НЕ срабатывает после явного `process.exit()`
 - `beforeExit` сработает только если процесс завершается естественно (event loop пуст)
+
+## Дополнительные улучшения (версия 1.6.4)
+
+### 1. Защита от маскировки ошибок при чтении checkpoint
+
+**Проблема:** Если Redis недоступен при обработке ошибки, вызов `getVideoCheckpoint` в catch блоке маскировал оригинальную ошибку, и user notifications/DB updates не выполнялись.
+
+**Решение:**
+```typescript
+// Получаем checkpoint для определения проблемного шага
+// Защищаем от ошибок Redis, чтобы не маскировать оригинальную ошибку
+let failedStep = 'unknown';
+try {
+    const checkpoint = await getVideoCheckpoint(videoId);
+    failedStep = getNextStep(checkpoint);
+} catch (checkpointError) {
+    logger.warn('Failed to read checkpoint after error', {
+        videoId,
+        error: checkpointError instanceof Error ? checkpointError.message : String(checkpointError)
+    });
+}
+```
+
+**Результат:**
+- Оригинальная ошибка не маскируется
+- User notifications и DB updates выполняются даже при недоступности Redis
+- Fallback на `'unknown'` step при ошибке чтения checkpoint
+
+### 2. UnrecoverableError для non-retryable ошибок
+
+**Проблема:** При non-retryable ошибках (например, логические баги) БД помечалась как `failed`, но BullMQ продолжал делать retry попытки, создавая inconsistent state.
+
+**Решение:**
+```typescript
+import { Worker, Job, UnrecoverableError } from "bullmq";
+
+// В catch блоке:
+const isRetryable = isRetryableError(error);
+const shouldRetry = attemptNumber < maxAttempts && isRetryable;
+
+// ... обработка ошибки ...
+
+// Для non-retryable ошибок используем UnrecoverableError,
+// чтобы BullMQ не делал дополнительных попыток
+if (!isRetryable) {
+    throw new UnrecoverableError(
+        error instanceof Error ? error.message : String(error)
+    );
+}
+
+throw error;
+```
+
+**Результат:**
+- Non-retryable ошибки (логические баги, validation errors) сразу останавливают job
+- Нет дополнительных retry попыток для ошибок, которые гарантированно не исправятся при повторе
+- Retryable ошибки (network, timeout) продолжают retry логику
+- Предотвращается inconsistent state между БД и BullMQ
+
+**Примеры non-retryable ошибок:**
+- Ошибки валидации данных
+- Логические баги в коде
+- Недоступность обязательных ресурсов (не transient)
+- Internal server errors (не network issues)
+
 
