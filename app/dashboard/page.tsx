@@ -3,8 +3,6 @@ import React from "react";
 import { prisma, withRetry } from "../lib/db";
 import { VideoCard } from "../components/videoCard";
 import { redirect } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { DashboardEmptyState } from "../components/DashboardEmptyState";
 import { RefreshButton } from "../components/RefreshButton";
 import { logger } from "@/lib/logger";
@@ -64,12 +62,14 @@ const Dashboard = async ({
   const params = await searchParams;
   const currentPage = Number(params.page) || 1;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let videos: any[] = [];
   
   try {
     videos = await getCachedVideos(userId);
-  } catch (error: any) {
-    logger.error("Database error", { error: error.message });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error("Database error", { error: errorMessage });
     // Handle database error - return empty array but log error for debugging
     videos = [];
   }

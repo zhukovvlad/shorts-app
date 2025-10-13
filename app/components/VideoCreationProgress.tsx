@@ -128,7 +128,6 @@ export const VideoCreationProgress = ({
 
   // Логируем для отладки (можно отключить в production)
   if (process.env.NODE_ENV === 'development') {
-    // eslint-disable-next-line no-console
     console.log('🎨 VideoCreationProgress:', {
       currentStep,
       activeStepId,
@@ -138,7 +137,7 @@ export const VideoCreationProgress = ({
   }
 
   // Обновляем статусы шагов на основе реальных данных о завершенности
-  const steps = defaultSteps.map((step, index) => {
+  const steps = defaultSteps.map((step) => {
     const stepIndex = defaultSteps.findIndex(s => s.id === step.id);
     const activeIndex = defaultSteps.findIndex(s => s.id === activeStepId);
     
@@ -179,7 +178,6 @@ export const VideoCreationProgress = ({
   // Логируем финальное состояние (только в development)
   if (process.env.NODE_ENV === 'development') {
     const completedCount = steps.filter(step => step.status === 'completed').length;
-    // eslint-disable-next-line no-console
     console.log(`📊 Steps: ${completedCount} completed, active: ${activeStepId}`);
   }
 

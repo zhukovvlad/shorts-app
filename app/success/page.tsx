@@ -3,22 +3,29 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
-const SuccessPage = () => {
+const SuccessContent = () => {
     const searchParams = useSearchParams();
+    const sessionId = searchParams.get("session_id");
     const [isProcessing, setIsProcessing] = useState(true);
     const [creditsAdded, setCreditsAdded] = useState<number | null>(null);
+    const hasCalledApi = useRef(false);
 
     useEffect(() => {
-        const sessionId = searchParams.get("session_id");
-        
         if (!sessionId) {
             setIsProcessing(false);
             return;
         }
+
+        // Prevent duplicate calls in React StrictMode
+        if (hasCalledApi.current) {
+            return;
+        }
+
+        hasCalledApi.current = true;
 
         // Call API to add credits
         const addCredits = async () => {
@@ -47,7 +54,7 @@ const SuccessPage = () => {
         };
 
         addCredits();
-    }, [searchParams]);
+    }, [sessionId]);
 
     return (
         <main className="min-h-screen bg-black flex items-center justify-center p-4">
@@ -94,6 +101,14 @@ const SuccessPage = () => {
                 </div>
             </article>
         </main>
+    );
+};
+
+const SuccessPage = () => {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center"><div className="text-white">Loading...</div></div>}>
+            <SuccessContent />
+        </Suspense>
     );
 };
 
