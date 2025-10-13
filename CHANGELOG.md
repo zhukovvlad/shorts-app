@@ -5,6 +5,32 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2025-10-13
+
+### Исправлено
+- **Worker: Корректное закрытие соединения с PostgreSQL**
+  - Добавлено явное закрытие `prisma.$disconnect()` в `gracefulShutdown` функции worker
+  - Добавлен флаг `isShuttingDown` для предотвращения множественных вызовов shutdown
+  - Добавлены обработчики `uncaughtException` и `unhandledRejection` для корректного завершения
+  - Убран обработчик `beforeExit` из worker, чтобы не конфликтовать с `db.ts`
+  - Исправлена ошибка: `prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }`
+  - Файл: `worker/worker.ts` (строки 245-283)
+
+- **Database: Graceful shutdown для всех окружений**
+  - Убрана проверка `if (process.env.NODE_ENV !== "production")` для обработчика `beforeExit`
+  - Теперь `beforeExit` обработчик работает во всех окружениях (dev + production)
+  - Добавлена защита от ошибок повторного закрытия соединения
+  - `beforeExit` работает как fallback на случай, если явный shutdown не сработал
+  - Обработчик игнорирует ошибки повторного закрытия для идемпотентности
+  - Файл: `app/lib/db.ts` (строки 56-73)
+
+- **Архитектура: Двухуровневая система закрытия соединений**
+  - Приоритет 1: Явное закрытие в Worker через `gracefulShutdown` (SIGINT/SIGTERM/uncaught)
+  - Приоритет 2: Автоматическое закрытие через `beforeExit` в `db.ts` (fallback)
+  - Предотвращены конфликты между обработчиками в worker.ts и db.ts
+  - Гарантировано корректное закрытие БД соединений в любом сценарии завершения
+  - Документация: `docs/WORKER_DB_CONNECTION_FIX.md`
+
 ## [1.6.3] - 2025-10-13
 
 ### Исправлено

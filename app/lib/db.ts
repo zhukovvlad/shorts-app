@@ -53,17 +53,36 @@ export const prisma =
 	});
 
 /**
- * Development-режим конфигурация
+ * Глобальная конфигурация для всех окружений
+ * В development кэшируем для HMR
  */
 if (process.env.NODE_ENV !== "production") {
 	globalForPrisma.prisma = prisma;
+}
+
+/**
+ * Graceful shutdown для всех окружений
+ * Автоматически закрываем соединение только через beforeExit
+ * (когда event loop пуст и процесс завершается)
+ * 
+ * Для явного управления (например, в worker) используйте prisma.$disconnect()
+ */
+if (!globalForPrisma.hasBeforeExitHandler) {
+	globalForPrisma.hasBeforeExitHandler = true;
 	
-	if (!globalForPrisma.hasBeforeExitHandler) {
-		globalForPrisma.hasBeforeExitHandler = true;
-		process.on('beforeExit', async () => {
+	process.on('beforeExit', async () => {
+		try {
 			await prisma.$disconnect();
-		});
-	}
+			logger.debug('Prisma connection closed via beforeExit');
+		} catch (error) {
+			// Игнорируем ошибки при повторном закрытии
+			if (error instanceof Error && !error.message.includes('already')) {
+				logger.error('Error disconnecting Prisma', {
+					error: error.message
+				});
+			}
+		}
+	});
 }
 
 /**
