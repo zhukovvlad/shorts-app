@@ -21,6 +21,8 @@ function isRetryableError(error: unknown): boolean {
         'ENETUNREACH',    // Network unreachable
         'EAI_AGAIN',      // DNS temporary failure
         'EPIPE',          // Broken pipe
+        'EHOSTUNREACH',   // Host unreachable
+        'ECONNABORTED',   // Connection aborted
     ];
     
     if (errorCode && retryableCodes.includes(errorCode)) {
@@ -39,6 +41,8 @@ function isRetryableError(error: unknown): boolean {
         'temporary failure',
         'service unavailable',  // 503
         'gateway timeout',      // 504
+        'socket hang up',       // Common in undici/Node HTTP
+        'timed out',            // Generic timeout
     ];
     
     return retryablePatterns.some(pattern => message.includes(pattern));
@@ -123,7 +127,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
 
     // Получаем текущее количество попыток из метаданных задачи
     const attemptsMade = job.attemptsMade || 0;
-    const maxAttempts = 3; // Максимальное количество попыток
+    const maxAttempts = job.opts?.attempts ?? 3; // Используем сконфигурированное значение или fallback 3
 
     // Если это повторная попытка, уведомляем пользователя
     if (attemptsMade > 0) {
@@ -262,7 +266,7 @@ worker.on('error', (err) => {
 })
 
 logger.info('Worker started, waiting for jobs', { version: '2' });
-logger.info('Connected to Redis');
+logger.debug('Connected to Redis'); // Downgrade to debug - уже логируется в 'connect' event
 
 // Тестируем подключение к Redis при старте
 testRedisConnection().then(success => {
@@ -345,5 +349,5 @@ process.on('unhandledRejection', (reason: unknown) => {
     message: msg,
     stack
   });
-  gracefulShutdown('unhandledRejection', true); // Передаем true как флаг фатальной ошибки
+  gracefulShutdown('unhandledRejection', reason instanceof Error ? reason : true); // Передаем оригинальную ошибку или true
 });

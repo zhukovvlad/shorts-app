@@ -10,11 +10,22 @@
 ### Добавлено
 - **Database: Утилита `withRetry` для автоматических повторов Prisma операций**
   - Экспортируется из `app/lib/db.ts` для переиспользования в приложении
-  - Автоматически повторяет операции при сетевых ошибках (P1001, P1017)
+  - Автоматически повторяет операции при сетевых ошибках и таймаутах
+  - Поддерживает `PrismaClientKnownRequestError` (codes: P1001, P1008, P1017)
+  - Поддерживает `PrismaClientInitializationError` с retryable errorCode (P1001, P1008, P1017)
   - Использует экспоненциальный backoff с jitter для предотвращения перегрузки
   - Настраиваемые параметры: `maxRetries` (по умолчанию 3) и `delayMs` (по умолчанию 1000ms)
-  - Type-safe реализация с proper error narrowing через `Prisma.PrismaClientKnownRequestError`
+  - Type-safe реализация с proper error type checking
   - Файл: `app/lib/db.ts`, функция `withRetry()`
+
+- **Database: Comprehensive тесты для `withRetry`**
+  - 22 test cases покрывают все сценарии:
+    - Успешные операции (первая попытка, разные типы возвращаемых значений)
+    - Retryable ошибки (P1001, P1008, P1017 для KnownRequestError и InitializationError)
+    - Non-retryable ошибки (P2002, P2025, ValidationError, generic Error)
+    - Retry behavior (exponential backoff, custom maxRetries, exhausted retries)
+    - Edge cases (null, undefined, non-Error rejections)
+  - Файл: `app/lib/db.spec.ts`
 
 ### Исправлено
 - **Worker: Корректное закрытие соединения с PostgreSQL**
@@ -39,7 +50,8 @@
   - При `uncaughtException` или `unhandledRejection` процесс **всегда** завершается с кодом 1
   - Exit code 1 устанавливается даже если ресурсы закрылись успешно (фатальная ошибка важнее)
   - `hadError` инициализируется как `!!fatalError`, затем дополняется ошибками закрытия ресурсов
-  - Обработчики `uncaughtException` и `unhandledRejection` передают флаг фатальной ошибки
+  - `unhandledRejection` теперь передает оригинальную ошибку вместо `true` для лучшей трассировки
+  - Обработчики `uncaughtException` и `unhandledRejection` передают флаг/ошибку фатальной ошибки
   - Предотвращает маскировку фатальных сбоев успешным кодом 0
   - Логируется `isFatal: true` для индикации фатального пути завершения
   - Критично для корректной работы мониторинга и orchestration (Docker, Kubernetes)
@@ -60,8 +72,18 @@
   - Экспоненциальный backoff предотвращает перегрузку БД
   - Файл: `worker/worker.ts`, DB операции в job handler
 
+- **Worker: Использование producer-configured retry attempts**
+  - Заменен hardcoded `maxAttempts = 3` на `job.opts?.attempts ?? 3`
+  - Теперь использует количество попыток, сконфигурированное при создании job
+  - Fallback на 3 попытки если не задано в конфигурации
+  - Позволяет гибко настраивать retry логику для разных типов задач
+  - Файл: `worker/worker.ts`, инициализация `maxAttempts`
+  - Файл: `worker/worker.ts`, DB операции в job handler
+
 - **Worker: Улучшена retry эвристика для предотвращения false positives**
   - Приоритет проверки `error.code` для системных ошибок (ECONNRESET, ETIMEDOUT, ENOTFOUND, etc.)
+  - Добавлены дополнительные retryable коды: EHOSTUNREACH, ECONNABORTED
+  - Добавлены message паттерны: 'socket hang up', 'timed out' (common в undici/Node HTTP)
   - Удален "internal server error" из retryable ошибок (может маскировать логические баги)
   - Сужена проверка до явных network/timeout/DNS/socket классов ошибок
   - Fallback на проверку message только для явных сетевых/timeout паттернов (503, 504)
@@ -84,12 +106,33 @@
   - Консистентная обработка ошибок независимо от casing
   - Файл: `worker/worker.ts`, error handling в catch блоке
 
+- **Worker: Снижение уровня логирования Redis подключения**
+  - Изменен `logger.info('Connected to Redis')` на `logger.debug()`
+  - Предотвращает дублирование с логом из 'connect' event handler
+  - Снижает шум в production логах
+  - Файл: `worker/worker.ts`, инициализация worker
+
+- **Документация: Обновлен код sample в WORKER_DB_CONNECTION_FIX.md**
+  - Добавлен JSDoc для `gracefulShutdown` с описанием параметра `fatalError`
+  - Добавлен комментарий о двух условиях для `hadError = true`
+  - Добавлен комментарий о семантике exit codes (0 vs 1)
+  - Код sample теперь полностью соответствует реализации в `worker/worker.ts`
+  - Файл: `docs/WORKER_DB_CONNECTION_FIX.md`, раздел "Исправление"
+
 - **Database: Улучшена типизация global cache**
   - Изменен тип `prisma` с required на optional (`prisma?: PrismaClient`)
   - Использован nullish coalescing operator (`??`) вместо logical OR (`||`)
   - Более точная типизация предотвращает subtle TypeScript issues
   - Соответствие runtime usage (prisma может быть undefined при первом доступе)
   - Файл: `app/lib/db.ts`, `globalForPrisma` type и `prisma` initialization
+
+- **Database: Расширена поддержка Prisma ошибок в `withRetry`**
+  - Добавлена обработка `PrismaClientInitializationError` (ошибки при инициализации клиента)
+  - Добавлен код `P1008` (Operations timed out) к retryable errors
+  - Теперь извлекаем `error.errorCode` из `PrismaClientInitializationError`
+  - Обновлен JSDoc с полным списком кодов: P1001, P1008, P1017
+  - Улучшена обработка connection timeouts при старте приложения
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
 
 - **Database: Улучшена документация `withRetry`**
   - Добавлены JSDoc комментарии с описанием параметров
