@@ -17,16 +17,20 @@
 - **Code Review: PrismaClientKnownRequestError constructor**
   - Добавлена helper-функция `createPrismaError()` для DRY принципа
   - Заменены все 8 вхождений конструктора на вызовы helper-функции
-  - Версия клиента ('6.16.1') теперь определена в одном месте
+  - Версия клиента теперь импортируется динамически из `@prisma/client/package.json`
+  - Автоматически синхронизируется с установленной версией Prisma
+  - Предотвращает несоответствие версий при обновлении Prisma
   - Упрощена поддержка при обновлении Prisma
-  - Файл: `lib/creditSystem.race.spec.ts` (строки 11-19, и 8 использований)
+  - Файл: `lib/creditSystem.race.spec.ts` (строки 8-10, 13-25, и 8 использований)
 
 - **Code Review: Улучшенная обработка JSON в add-credits endpoint**
   - Добавлен try-catch для обработки невалидного JSON body
   - Невалидный JSON теперь возвращает 400 вместо 500
   - Добавлена проверка типа `sessionId` (должен быть непустой string)
   - Улучшена валидация с проверкой `trim()` для whitespace
-  - Файл: `app/api/stripe/add-credits/route.ts` (строки 25-32)
+  - `sessionId` теперь trim'ится после валидации перед использованием
+  - Предотвращены проблемы с whitespace-padded session IDs в downstream операциях
+  - Файл: `app/api/stripe/add-credits/route.ts` (строки 25-35, 78, 107)
 
 - **Code Review: Устранение variable shadowing**
   - Переименована внутренняя переменная `user` в `updatedUser` внутри транзакции
@@ -54,8 +58,10 @@
   - `afterEach` восстанавливает оригинальный env
   - Добавлен `jest.resetModules()` для полной изоляции
   - Предотвращается "утечка" env мутаций между тестами
+  - Удалено избыточное локальное сохранение env в тесте production mode
+  - Упрощен код благодаря глобальным хукам beforeEach/afterEach
   - Все 33 теста проходят успешно
-  - Файл: `app/api/stripe/checkout/route.spec.ts` (строки 31-50)
+  - Файл: `app/api/stripe/checkout/route.spec.ts` (строки 31-50, 284-302)
 
 ## [1.6.2] - 2025-10-13
 

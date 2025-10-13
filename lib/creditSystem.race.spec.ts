@@ -6,6 +6,8 @@
  */
 
 import { Prisma } from '@prisma/client';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { version: prismaVersion } = require('@prisma/client/package.json');
 
 /**
  * Helper factory to create PrismaClientKnownRequestError with correct constructor signature
@@ -17,7 +19,7 @@ function createPrismaError(
 ): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError(message, {
     code,
-    clientVersion: '6.16.1',
+    clientVersion: prismaVersion,
     meta
   });
 }
