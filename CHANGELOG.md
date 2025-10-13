@@ -31,7 +31,19 @@
   - Каждый ресурс (Worker, Redis, Prisma) закрывается в отдельном try-catch
   - Exit code зависит от наличия ошибок: 0 если все успешно, 1 если были ошибки
   - Улучшена диагностика с отдельными сообщениями об ошибках для каждого ресурса
+  - Гарантирует максимальную очистку ресурсов даже при частичных сбоях
   - Файл: `worker/worker.ts`, функция `gracefulShutdown()`
+
+- **Worker: Корректный exit code для фатальных ошибок**
+  - Добавлен параметр `fatalError?: Error | boolean` в функцию `gracefulShutdown`
+  - При `uncaughtException` или `unhandledRejection` процесс **всегда** завершается с кодом 1
+  - Exit code 1 устанавливается даже если ресурсы закрылись успешно (фатальная ошибка важнее)
+  - `hadError` инициализируется как `!!fatalError`, затем дополняется ошибками закрытия ресурсов
+  - Обработчики `uncaughtException` и `unhandledRejection` передают флаг фатальной ошибки
+  - Предотвращает маскировку фатальных сбоев успешным кодом 0
+  - Логируется `isFatal: true` для индикации фатального пути завершения
+  - Критично для корректной работы мониторинга и orchestration (Docker, Kubernetes)
+  - Файл: `worker/worker.ts`, функция `gracefulShutdown()` и обработчики событий
 
 - **Worker: Улучшено логирование критических ошибок**
   - Добавлен stack trace в логи для `uncaughtException` (message + stack)
@@ -47,6 +59,44 @@
   - Автоматические повторные попытки при временных проблемах с БД
   - Экспоненциальный backoff предотвращает перегрузку БД
   - Файл: `worker/worker.ts`, DB операции в job handler
+
+- **Worker: Улучшена retry эвристика для предотвращения false positives**
+  - Приоритет проверки `error.code` для системных ошибок (ECONNRESET, ETIMEDOUT, ENOTFOUND, etc.)
+  - Удален "internal server error" из retryable ошибок (может маскировать логические баги)
+  - Сужена проверка до явных network/timeout/DNS/socket классов ошибок
+  - Fallback на проверку message только для явных сетевых/timeout паттернов (503, 504)
+  - Более надежное определение transient ошибок vs application bugs
+  - Файл: `worker/worker.ts`, функция `isRetryableError()`
+
+- **Worker: Checkpoint reads теперь non-fatal**
+  - Обернут `getVideoCheckpoint` в try-catch для защиты от недоступности Redis
+  - При сбое Redis job продолжается с начала (default step: 'script')
+  - Логируется warning вместо падения всего job
+  - Предотвращает отказ обработки видео из-за временных проблем с Redis
+  - Повышена отказоустойчивость worker при проблемах с кэшем
+  - Файл: `worker/worker.ts`, начало job handler
+
+- **Worker: Нормализация error messages для case-insensitive проверок**
+  - Добавлена переменная `msg` с `toLowerCase()` для всех проверок сообщений
+  - Все паттерны теперь в lowercase ('connect timeout', 'etimedout', 'api', 's3')
+  - Исправлена проблема с "Connect Timeout" vs "connect timeout"
+  - Удален redundant тернарный оператор `status: shouldRetry ? 'error' : 'error'` → `status: 'error'`
+  - Консистентная обработка ошибок независимо от casing
+  - Файл: `worker/worker.ts`, error handling в catch блоке
+
+- **Database: Улучшена типизация global cache**
+  - Изменен тип `prisma` с required на optional (`prisma?: PrismaClient`)
+  - Использован nullish coalescing operator (`??`) вместо logical OR (`||`)
+  - Более точная типизация предотвращает subtle TypeScript issues
+  - Соответствие runtime usage (prisma может быть undefined при первом доступе)
+  - Файл: `app/lib/db.ts`, `globalForPrisma` type и `prisma` initialization
+
+- **Database: Улучшена документация `withRetry`**
+  - Добавлены JSDoc комментарии с описанием параметров
+  - Добавлен пример использования в @example секции
+  - Добавлена @future заметка о возможных перегрузках функции
+  - Упомянута возможность custom retryable codes или predicate функции
+  - Файл: `app/lib/db.ts`, функция `withRetry()`
 
 - **Database: Graceful shutdown для всех окружений**
   - Убрана проверка `if (process.env.NODE_ENV !== "production")` для обработчика `beforeExit`

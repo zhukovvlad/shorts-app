@@ -116,9 +116,16 @@ process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
 2. **Автоматическое закрытие в db.ts** (fallback)
    - beforeExit - срабатывает когда event loop пуст (перед завершением процесса)
    - **Важно:** `beforeExit` не срабатывает, если вызван `process.exit()` - в этом случае сработает событие `exit`
+   - **Важно:** `process.on('exit')` не может выполнять async операции - не полагайтесь на него для cleanup
    - Работает во всех окружениях (dev + production)
 
-3. **Защита от двойного закрытия**
+3. **Exit code семантика**
+   - Фатальные ошибки (`uncaughtException`, `unhandledRejection`) **всегда** завершаются с кодом 1
+   - Даже если ресурсы закрылись успешно, exit code будет 1 при фатальной ошибке
+   - Graceful shutdown (SIGINT/SIGTERM) завершается с кодом 0 если все ресурсы закрылись успешно
+   - Параметр `fatalError` в `gracefulShutdown()` гарантирует non-zero exit для критических путей
+
+4. **Защита от двойного закрытия**
    - Флаг `isShuttingDown` в worker
    - try/catch с игнорированием ошибок повторного закрытия в db.ts
 
@@ -131,6 +138,19 @@ process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
 4. ✅ Обрабатываются различные сценарии завершения (SIGINT, SIGTERM, uncaughtException, unhandledRejection)
 5. ✅ Нет конфликтов между обработчиками в worker.ts и db.ts
 6. ✅ Работает как в development, так и в production
+7. ✅ Фатальные ошибки всегда возвращают exit code 1 для правильного мониторинга
+8. ✅ Best-effort закрытие всех ресурсов даже при частичных сбоях
+
+### Exit code сценарии
+
+| Сценарий | Ресурсы | Exit Code | Причина |
+|----------|---------|-----------|---------|
+| SIGTERM/SIGINT | ✅ Закрылись | 0 | Graceful shutdown |
+| SIGTERM/SIGINT | ❌ Ошибка | 1 | Ошибка при закрытии |
+| uncaughtException | ✅ Закрылись | 1 | Фатальная ошибка |
+| uncaughtException | ❌ Ошибка | 1 | Фатальная ошибка + ошибка закрытия |
+| unhandledRejection | ✅ Закрылись | 1 | Фатальная ошибка |
+| unhandledRejection | ❌ Ошибка | 1 | Фатальная ошибка + ошибка закрытия |
 
 ## Логи после исправления
 
@@ -144,8 +164,30 @@ process.on('unhandledRejection', (reason) => { // ✅ ДОБАВЛЕНО
 
 ## Дополнительная информация
 
+### Prisma Connection Pool
+
 Prisma использует connection pool, который нужно явно закрывать через `$disconnect()`, иначе:
 - Node.js процесс может "висеть" 
 - PostgreSQL будет видеть закрытие как ошибку
 - В production окружении это особенно критично для правильного управления ресурсами
+
+### Node.js Process Events
+
+**Async cleanup:**
+- ✅ `beforeExit` - может выполнять async операции (await prisma.$disconnect())
+- ✅ `SIGTERM`/`SIGINT` - может выполнять async операции
+- ✅ `uncaughtException`/`unhandledRejection` - может выполнять async операции
+- ❌ `exit` - **НЕ может** выполнять async операции, используется только для синхронного cleanup
+
+**Порядок событий при завершении:**
+1. Событие (SIGTERM, uncaughtException, etc.)
+2. Async cleanup в обработчике (наш gracefulShutdown)
+3. `process.exit(code)` вызывается явно
+4. Событие `exit` (только синхронный код)
+5. Процесс завершается
+
+**Почему `beforeExit` в db.ts это fallback:**
+- Worker явно вызывает `process.exit()` после cleanup
+- `beforeExit` НЕ срабатывает после явного `process.exit()`
+- `beforeExit` сработает только если процесс завершается естественно (event loop пуст)
 

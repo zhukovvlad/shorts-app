@@ -16,8 +16,8 @@ import { logger } from "@/lib/logger";
  * Используется для предотвращения создания множественных подключений в режиме разработки
  * при Hot Module Reload (HMR) в Next.js.
  */
-const globalForPrisma = global as unknown as { 
-	prisma: PrismaClient;
+const globalForPrisma = global as unknown as {
+	prisma?: PrismaClient;
 	hasBeforeExitHandler?: boolean;
 };
 
@@ -39,7 +39,7 @@ if (!resolvedDbUrl) {
  * Экземпляр Prisma Client для взаимодействия с базой данных.
  */
 export const prisma =
-	globalForPrisma.prisma ||
+	globalForPrisma.prisma ??
 	new PrismaClient({
 		datasources: {
 			db: {
@@ -91,6 +91,20 @@ if (!globalForPrisma.hasBeforeExitHandler) {
  * 
  * Использует экспоненциальный backoff с jitter для предотвращения thundering herd.
  * Повторяет только при определенных ошибках соединения (P1001, P1017).
+ * 
+ * @param operation - Async операция для выполнения
+ * @param maxRetries - Максимальное количество попыток (default: 3)
+ * @param delayMs - Базовая задержка в мс для backoff (default: 1000)
+ * 
+ * @example
+ * ```typescript
+ * const user = await withRetry(() => 
+ *   prisma.user.findUnique({ where: { id } })
+ * );
+ * ```
+ * 
+ * @future Возможно добавление перегрузки с custom retryable codes или predicate функцией
+ * для более гибкой обработки ошибок в других частях приложения.
  */
 export async function withRetry<T>(
 	operation: () => Promise<T>,
