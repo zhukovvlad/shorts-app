@@ -87,14 +87,18 @@ if (!globalForPrisma.hasBeforeExitHandler) {
 }
 
 /**
- * Обертка для операций с базой данных с механизмом автоматических повторных попыток.
+ * Обертка для database операций с автоматическими retry при transient ошибках.
+ * Обрабатывает временные проблемы подключения и инициализации:
+ * - P1001: Can't reach database server
+ * - P1008: Operations timed out
+ * - P1017: Server has closed the connection
+ * - PrismaClientInitializationError с retryable errorCode
  * 
- * Использует экспоненциальный backoff с jitter для предотвращения thundering herd.
- * Повторяет только при определенных ошибках соединения (P1001, P1017).
- * 
- * @param operation - Async операция для выполнения
- * @param maxRetries - Максимальное количество попыток (default: 3)
- * @param delayMs - Базовая задержка в мс для backoff (default: 1000)
+ * @param operation - Асинхронная операция для выполнения
+ * @param maxRetries - Максимальное количество попыток (по умолчанию 3)
+ * @param delayMs - Начальная задержка перед retry в миллисекундах (по умолчанию 1000)
+ * @returns Promise с результатом операции
+ * @throws Последнюю ошибку после исчерпания всех попыток
  * 
  * @example
  * ```typescript
@@ -117,9 +121,17 @@ export async function withRetry<T>(
 			return await operation();
 		} catch (error: unknown) {
 			lastError = error;
-			const isPrismaKnown = error instanceof Prisma.PrismaClientKnownRequestError;
-			const code = isPrismaKnown ? error.code : undefined;
-			const retryable = code === 'P1001' || code === 'P1017';
+			
+			// Определяем код ошибки из разных типов Prisma ошибок
+			let code: string | undefined;
+			if (error instanceof Prisma.PrismaClientKnownRequestError) {
+				code = error.code;
+			} else if (error instanceof Prisma.PrismaClientInitializationError) {
+				code = error.errorCode;
+			}
+			
+			// Retryable коды: проблемы подключения, таймауты, закрытые соединения
+			const retryable = code === 'P1001' || code === 'P1008' || code === 'P1017';
 
 			if (attempt === maxRetries || !retryable) {
 				throw error;

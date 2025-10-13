@@ -16,13 +16,19 @@ prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
 
 ### 1. Добавлено закрытие Prisma соединения в Worker
 
-В `worker/worker.ts` добавлен явный вызов `prisma.$disconnect()` с защитой от повторных вызовов:
+В `worker/worker.ts` добавлен явный вызов `prisma.$disconnect()` с best-effort подходом к закрытию ресурсов:
 
 ```typescript
 // Флаг для предотвращения множественных вызовов graceful shutdown
 let isShuttingDown = false;
 
-const gracefulShutdown = async (signal: string) => {
+/**
+ * Graceful shutdown с best-effort закрытием ресурсов
+ * @param signal - Сигнал, инициировавший shutdown (SIGTERM, SIGINT и т.д.)
+ * @param fatalError - Флаг фатальной ошибки (uncaughtException, unhandledRejection)
+ *                     Если true/Error - гарантирует exit code 1 даже при успешной очистке
+ */
+const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) => {
   // Предотвращаем повторные вызовы
   if (isShuttingDown) {
     logger.debug('Shutdown already in progress, ignoring signal', { signal });
@@ -30,25 +36,51 @@ const gracefulShutdown = async (signal: string) => {
   }
   
   isShuttingDown = true;
-  logger.info('Graceful shutdown initiated', { signal });
+  logger.info('Graceful shutdown initiated', { signal, isFatal: !!fatalError });
   
+  // Best-effort закрытие всех ресурсов (не прерываем на первой ошибке)
+  // hadError = true если:
+  // 1. Это фатальная ошибка приложения (uncaughtException/unhandledRejection)
+  // 2. Были ошибки при закрытии ресурсов
+  let hadError = !!fatalError;
+  
+  // Закрываем Worker
   try {
     await worker.close();
     logger.info('Worker closed successfully');
-    
+  } catch (error) {
+    hadError = true;
+    logger.error('Error closing worker', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+  
+  // Закрываем Redis
+  try {
     await connection.quit();
     logger.info('Redis connection closed successfully');
-    
-    await prisma.$disconnect(); // ✅ ДОБАВЛЕНО
-    logger.info('Prisma connection closed successfully');
-    
-    process.exit(0);
   } catch (error) {
-    logger.error('Error during graceful shutdown', {
-      error: error instanceof Error ? error.message : String(error)
+    hadError = true;
+    logger.error('Error closing Redis', { 
+      error: error instanceof Error ? error.message : String(error) 
     });
-    process.exit(1);
   }
+  
+  // Закрываем Prisma ✅ ДОБАВЛЕНО
+  try {
+    await prisma.$disconnect();
+    logger.info('Prisma connection closed successfully');
+  } catch (error) {
+    hadError = true;
+    logger.error('Error closing Prisma', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
+  }
+  
+  // Exit code:
+  // 0 - graceful shutdown без ошибок
+  // 1 - либо фатальная ошибка приложения, либо ошибки при закрытии ресурсов
+  process.exit(hadError ? 1 : 0);
 };
 ```
 
