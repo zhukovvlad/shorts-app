@@ -209,7 +209,7 @@ process.on('unhandledRejection', (reason: unknown) => { // ✅ ДОБАВЛЕН�
 ### ⚠️ Важное примечание о Prisma debug-логах
 
 ~~Вы можете увидеть сообщение от Prisma:~~
-```
+```text
 prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
 ```
 
@@ -233,9 +233,6 @@ prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
 [WORKER] INFO: Processing step: render
 [WORKER] INFO: ✅ Completed processing {"videoId":"xxx"}
 [WORKER] INFO: ✅ Job completed successfully {"jobId":"1"}
-```
-[WORKER] INFO: Redis connection closed successfully
-[WORKER] INFO: Prisma connection closed successfully
 ```
 
 ## Дополнительная информация

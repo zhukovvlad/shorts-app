@@ -3,7 +3,7 @@
 ## Проблема
 
 После успешного завершения задачи появлялось сообщение:
-```
+```text
 prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
 ```
 
