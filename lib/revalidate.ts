@@ -11,12 +11,12 @@ import { logger } from './logger';
  * Инвалидирует кэш по тегу через API endpoint с retry логикой
  * 
  * @param tag - Тег кэша для инвалидации (например, 'videos')
- * @param maxRetries - Максимальное количество попыток (по умолчанию 2)
+ * @param maxAttempts - Максимальное количество попыток (по умолчанию 2, минимум 1)
  * @returns Promise<boolean> - true если успешно, false при ошибке
  */
 export async function revalidateCacheFromWorker(
   tag: string,
-  maxRetries: number = 2
+  maxAttempts: number = 2
 ): Promise<boolean> {
   // Используем NEXTAUTH_URL с fallback на NEXT_PUBLIC_APP_URL
   const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
@@ -33,8 +33,8 @@ export async function revalidateCacheFromWorker(
   
   const secret = process.env.REVALIDATE_SECRET;
 
-  // Гарантируем хотя бы одну попытку даже если maxRetries=0
-  const attemptsAllowed = Math.max(1, maxRetries);
+  // Гарантируем хотя бы одну попытку даже если maxAttempts=0
+  const attemptsAllowed = Math.max(1, maxAttempts);
 
   for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
     // Создаем контроллер для timeout
@@ -56,9 +56,9 @@ export async function revalidateCacheFromWorker(
           
           // Не ретраим при клиентских ошибках (4xx кроме 429)
           // 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 
-          // 405 Method Not Allowed, 422 Unprocessable Entity и т.д.
+          // 405 Method Not Allowed, 410 Gone, 422 Unprocessable Entity и т.д.
           // Эти ошибки указывают на проблемы с конфигурацией или авторизацией, которые не исчезнут при повторе
-          const nonRetryable4xx = [400, 401, 403, 404, 405, 422];
+          const nonRetryable4xx = [400, 401, 403, 404, 405, 410, 422];
           if (nonRetryable4xx.includes(response.status)) {
             logger.warn('Failed to revalidate cache (client error, no retry)', {
               tag,
@@ -93,11 +93,14 @@ export async function revalidateCacheFromWorker(
                   // Формат: HTTP-date (например, "Wed, 21 Oct 2015 07:28:00 GMT")
                   const retryDate = new Date(retryAfter);
                   const now = new Date();
-                  delay = Math.max(0, retryDate.getTime() - now.getTime());
+                  const ms = retryDate.getTime() - now.getTime();
+                  // Если дата невалидная (NaN) → fallback на экспоненциальную задержку
+                  delay = Number.isFinite(ms) ? Math.max(0, ms) : Math.pow(2, attempt - 1) * 1000;
                 }
                 // Ограничиваем максимальную задержку 60 секундами для безопасности
                 // Это предотвращает зависание воркера при некорректных значениях Retry-After
-                delay = Math.min(delay, 60000);
+                // Math.max(0, delay) защищает от отрицательных значений
+                delay = Math.min(Math.max(0, delay), 60000);
               } else {
                 // Если заголовка нет, используем экспоненциальную задержку
                 delay = Math.pow(2, attempt - 1) * 1000;
