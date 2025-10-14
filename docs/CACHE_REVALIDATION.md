@@ -137,18 +137,19 @@ export async function POST(request: NextRequest) {
 ```typescript
 export async function revalidateCacheFromWorker(
   tag: string,
-  maxRetries: number = 2
+  maxAttempts: number = 2
 ): Promise<boolean> {
   // Используем NEXTAUTH_URL с fallback на NEXT_PUBLIC_APP_URL
   const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const endpointUrl = new URL('/api/revalidate', base).toString();
   const secret = process.env.REVALIDATE_SECRET;
 
-  const attemptsAllowed = Math.max(1, maxRetries);
+  const attemptsAllowed = Math.max(1, maxAttempts);
 
   for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
     // ... fetch с timeout и retry логикой
     // Jitter добавляется к задержке для предотвращения thundering herd
+    // Все задержки проходят через clamp [0, 60000] после добавления jitter
   }
 }
 ```
@@ -156,15 +157,17 @@ export async function revalidateCacheFromWorker(
 **Надежность:**
 - Timeout 5 секунд (предотвращает зависание)
 - Автоматический retry при транзиентных ошибках (до 2 попыток)
-- Гарантируется минимум 1 попытка даже если maxRetries=0
+- Гарантируется минимум 1 попытка даже если maxAttempts=0
 - Корректное построение URL через `new URL()` (избегает проблем с //)
 - Экспоненциальная задержка между попытками (1s, 2s) + jitter (до 250ms)
 - Jitter предотвращает thundering herd эффект
+- **Helper функция `clampDelay()`** гарантирует диапазон [0, 60000]ms во всех путях
 - Поддержка заголовка `Retry-After` для 429 Too Many Requests
 - Ретраит при серверных ошибках (5xx), rate limiting (429) и Request Timeout (408)
-- Не ретраит при клиентских ошибках (400, 401, 403, 404, 405, 422)
+- Не ретраит при клиентских ошибках (400, 401, 403, 404, 405, 410, 422)
 - Расширенная проверка сетевых ошибок (ECONNREFUSED, ECONNRESET, EAI_AGAIN, ENOTFOUND, ETIMEDOUT)
 - Безопасное построение URL с fallback при ошибке
+- Trim secret из env и запроса для предотвращения mismatch
 
 **Retry стратегия по HTTP статусам:**
 
@@ -188,10 +191,12 @@ export async function revalidateCacheFromWorker(
   - Формат секунд: `Retry-After: 120` → 120 секунд
   - Формат даты: `Retry-After: Wed, 21 Oct 2015 07:28:00 GMT` → вычисляем разницу
   - **Защита от NaN:** Если дата невалидная → fallback на экспоненциальную задержку
+  - Clamp [0, 60000]ms до добавления jitter
 - **429 без `Retry-After`:** Экспоненциальная задержка (1s, 2s)
 - **5xx ошибки:** Экспоненциальная задержка (1s, 2s)
 - **Network/Timeout:** Экспоненциальная задержка (1s, 2s)
-- **Все задержки:** Проверка `Number.isFinite()` и clamp в диапазон [0, 60000]ms
+- **Jitter:** Добавляется 0-250ms к каждой задержке для предотвращения thundering herd
+- **Финальный clamp:** Все задержки (включая jitter) проходят через `Math.min(Math.max(0, delay), 60000)` перед использованием
 
 #### Шаг 3: Использование в воркере
 

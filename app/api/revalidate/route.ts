@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
     // Опциональная защита через secret (можно добавить переменную окружения)
     // Note: Rate limiting должен быть настроен на уровне nginx/load balancer
     // В production рекомендуется требовать secret для предотвращения злоупотребления
-    const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET;
+    // Нормализуем и secret из окружения (защита от пробелов в .env)
+    const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET?.trim();
     
     // Fail-closed: отклоняем запросы если secret не установлен в production
     if (process.env.NODE_ENV === 'production' && !REVALIDATE_SECRET) {

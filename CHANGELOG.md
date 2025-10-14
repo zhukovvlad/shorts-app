@@ -28,7 +28,7 @@
     - Безопасный парсинг JSON (возвращает 400 вместо 500 при ошибке парсинга)
     - Type-safe проверка allowlist через type guard (без `as any`)
     - Нормализация тега через `trim()` перед валидацией (обрабатывает пробелы)
-    - Нормализация secret через `trim()` для предотвращения ошибок конфигурации
+    - **Нормализация secret:** Trim и для входящего secret, и для `REVALIDATE_SECRET` из env (защита от пробелов в .env)
     - **Fail-closed в production:** endpoint отключен если REVALIDATE_SECRET не установлен (503)
     - Allowlist разрешенных тегов (предотвращает злоупотребление)
   - **Утилита для воркера (`lib/revalidate.ts`):**
@@ -49,7 +49,9 @@
       - Jitter предотвращает thundering herd эффект
       - Расширенная проверка сетевых ошибок (ECONNREFUSED, ECONNRESET, EAI_AGAIN, ENOTFOUND, ETIMEDOUT)
       - `finally` блок гарантирует очистку timeout
-      - `Number.isFinite()` проверка и clamp задержки в диапазон [0, 60000]ms
+      - **Helper функция `clampDelay()`** для консистентного clamping во всех путях
+      - **Финальный clamp `[0, 60000]ms` применяется везде:** после jitter во всех retry путях (429, 5xx, network/timeout)
+      - Trim secret из env для соответствия с API route
     - **Observability:**
       - Логирование использует `maxAttempts` консистентно
       - Все попытки и задержки видны в логах
