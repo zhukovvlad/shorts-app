@@ -62,9 +62,29 @@ import { revalidateTag } from 'next/cache';
 
 // Разрешенные теги для инвалидации кэша
 const ALLOWED_TAGS = ['videos'] as const;
+type AllowedTag = typeof ALLOWED_TAGS[number];
+
+// Type guard для проверки тега в allowlist
+const isAllowedTag = (t: string): t is AllowedTag =>
+  (ALLOWED_TAGS as readonly string[]).includes(t);
 
 export async function POST(request: NextRequest) {
-  const { tag, secret } = await request.json();
+  // Безопасный парсинг JSON
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  
+  const { tag, secret } = body;
+  
+  const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET;
+  
+  // Предупреждение если secret не установлен в production
+  if (process.env.NODE_ENV === 'production' && !REVALIDATE_SECRET) {
+    logger.error('REVALIDATE_SECRET not set in production - endpoint is unprotected!');
+  }
   
   // Опциональная защита
   if (REVALIDATE_SECRET && secret !== REVALIDATE_SECRET) {
@@ -79,8 +99,8 @@ export async function POST(request: NextRequest) {
     );
   }
   
-  // Проверка allowlist
-  if (!ALLOWED_TAGS.includes(tag as any)) {
+  // Проверка allowlist (type-safe)
+  if (!isAllowedTag(tag)) {
     return NextResponse.json({ error: 'Invalid tag' }, { status: 400 });
   }
   
@@ -90,7 +110,10 @@ export async function POST(request: NextRequest) {
 ```
 
 **Защита:**
+- Безопасный парсинг JSON (возвращает 400 вместо 500 при ошибке)
+- Type-safe проверка allowlist (без `as any`)
 - Опциональная проверка secret
+- Предупреждение в production если secret не установлен
 - Валидация типа тега
 - Allowlist разрешенных тегов (предотвращает злоупотребление)
 - Rate limiting должен быть настроен на уровне nginx/load balancer
@@ -98,6 +121,37 @@ export async function POST(request: NextRequest) {
 #### Шаг 2: Утилита для воркера
 
 Создана функция `lib/revalidate.ts`:
+
+```typescript
+export async function revalidateCacheFromWorker(
+  tag: string,
+  maxRetries: number = 2
+): Promise<boolean> {
+  // Используем NEXTAUTH_URL с fallback на NEXT_PUBLIC_APP_URL
+  const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const endpointUrl = new URL('/api/revalidate', base).toString();
+  const secret = process.env.REVALIDATE_SECRET;
+
+  const attemptsAllowed = Math.max(1, maxRetries);
+
+  for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
+    // ... fetch с timeout и retry логикой
+    // Jitter добавляется к задержке для предотвращения thundering herd
+  }
+}
+```
+
+**Надежность:**
+- Timeout 5 секунд (предотвращает зависание)
+- Автоматический retry при транзиентных ошибках (до 2 попыток)
+- Гарантируется минимум 1 попытка даже если maxRetries=0
+- Корректное построение URL через `new URL()` (избегает проблем с //)
+- Экспоненциальная задержка между попытками (1s, 2s) + jitter (до 250ms)
+- Jitter предотвращает thundering herd эффект
+- Поддержка заголовка `Retry-After` для 429 Too Many Requests
+- Ретраит при серверных ошибках (5xx) и rate limiting (429)
+- Не ретраит при клиентских ошибках (400, 401, 403, 404, 405, 422)
+- Расширенная проверка сетевых ошибок (ECONNREFUSED, ECONNRESET, EAI_AGAIN, ENOTFOUND, ETIMEDOUT)
 
 ```typescript
 export async function revalidateCacheFromWorker(
@@ -122,16 +176,41 @@ export async function revalidateCacheFromWorker(
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Не ретраим при 400/401 (клиентские ошибки)
-        if (response.status === 400 || response.status === 401) {
+        // Не ретраим при клиентских ошибках (4xx кроме 429)
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
           return false;
         }
         
-        // Ретраим при 5xx с экспоненциальной задержкой
-        if (attempt < maxRetries) {
-          await new Promise(resolve => 
-            setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
-          );
+        // Ретраим при 5xx или 429 Too Many Requests
+        const shouldRetry = 
+          (response.status >= 500 && response.status < 600) || 
+          response.status === 429;
+
+        if (shouldRetry && attempt < maxRetries) {
+          let delay: number;
+          
+          // Обработка Retry-After для 429
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            if (retryAfter) {
+              // Может быть в секундах или HTTP-date
+              const retryAfterSeconds = parseInt(retryAfter, 10);
+              if (!isNaN(retryAfterSeconds)) {
+                delay = retryAfterSeconds * 1000;
+              } else {
+                const retryDate = new Date(retryAfter);
+                delay = Math.max(0, retryDate.getTime() - Date.now());
+              }
+              delay = Math.min(delay, 60000); // Максимум 60 секунд
+            } else {
+              delay = Math.pow(2, attempt - 1) * 1000;
+            }
+          } else {
+            // Для 5xx - экспоненциальная задержка
+            delay = Math.pow(2, attempt - 1) * 1000;
+          }
+
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
       }
@@ -156,7 +235,32 @@ export async function revalidateCacheFromWorker(
 - Timeout 5 секунд (предотвращает зависание)
 - Автоматический retry при транзиентных ошибках (до 2 попыток)
 - Экспоненциальная задержка между попытками (1s, 2s)
-- Не ретраит при клиентских ошибках (400/401)
+- Поддержка заголовка `Retry-After` для 429 Too Many Requests
+- Ретраит при серверных ошибках (5xx) и rate limiting (429)
+- Не ретраит при клиентских ошибках (400, 401, 403, 404, 405 и т.д.)
+
+**Retry стратегия по HTTP статусам:**
+
+| Статус | Действие | Причина |
+|--------|----------|---------|
+| 200-299 | ✅ Успех | Операция выполнена успешно |
+| 400 | ❌ Не ретраит | Bad Request - ошибка в запросе |
+| 401 | ❌ Не ретраит | Unauthorized - неправильный secret |
+| 403 | ❌ Не ретраит | Forbidden - доступ запрещен |
+| 404 | ❌ Не ретраит | Not Found - endpoint не существует |
+| 405 | ❌ Не ретраит | Method Not Allowed - неправильный HTTP метод |
+| 422 | ❌ Не ретраит | Unprocessable Entity - невалидные данные |
+| 429 | 🔄 Ретрай | Too Many Requests - используем `Retry-After` если есть |
+| 500-599 | 🔄 Ретрай | Server Error - транзиентная ошибка сервера |
+| Network/Timeout | 🔄 Ретрай | Сетевая ошибка или timeout |
+
+**Логика задержки:**
+- **429 с `Retry-After`:** Используем указанное время (максимум 60 секунд)
+  - Формат секунд: `Retry-After: 120` → 120 секунд
+  - Формат даты: `Retry-After: Wed, 21 Oct 2015 07:28:00 GMT` → вычисляем разницу
+- **429 без `Retry-After`:** Экспоненциальная задержка (1s, 2s)
+- **5xx ошибки:** Экспоненциальная задержка (1s, 2s)
+- **Network/Timeout:** Экспоненциальная задержка (1s, 2s)
 
 #### Шаг 3: Использование в воркере
 
@@ -241,11 +345,20 @@ API endpoint будет проверять secret перед инвалидац�
 
 ```bash
 # Базовый URL приложения (для воркера)
+# Приоритет: NEXTAUTH_URL > NEXT_PUBLIC_APP_URL > localhost
 NEXTAUTH_URL=https://your-domain.com
+# или
+NEXT_PUBLIC_APP_URL=https://your-domain.com
 
 # Опциональный secret для защиты endpoint
+# Рекомендуется устанавливать в production
 REVALIDATE_SECRET=your-random-secret
 ```
+
+**Примечание о переменных окружения:**
+- `NEXTAUTH_URL` - основная переменная для server-side URL
+- `NEXT_PUBLIC_APP_URL` - fallback если NEXTAUTH_URL не установлен
+- Воркер использует обе с приоритетом NEXTAUTH_URL
 
 ## Преимущества решения
 
