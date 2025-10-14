@@ -27,21 +27,27 @@
   - **API endpoint (`app/api/revalidate/route.ts`):**
     - Безопасный парсинг JSON (возвращает 400 вместо 500 при ошибке парсинга)
     - Type-safe проверка allowlist через type guard (без `as any`)
-    - Предупреждение в production если REVALIDATE_SECRET не установлен
+    - Нормализация тега через `trim()` перед валидацией (обрабатывает пробелы)
+    - **Fail-closed в production:** endpoint отключен если REVALIDATE_SECRET не установлен (503)
     - Allowlist разрешенных тегов (предотвращает злоупотребление)
   - **Утилита для воркера (`lib/revalidate.ts`):**
     - **Умная retry логика:** 
-      - Ретраит только при серверных ошибках (5xx) и rate limiting (429)
+      - Ретраит при серверных ошибках (5xx), rate limiting (429) и Request Timeout (408)
       - НЕ ретраит при клиентских ошибках (400, 401, 403, 404, 405, 422)
       - Поддержка заголовка `Retry-After` для 429 Too Many Requests
       - Парсинг `Retry-After` в формате секунд и HTTP-date
       - Ограничение максимальной задержки 60 секундами для безопасности
     - **Надежность:**
+      - Безопасное построение URL с fallback на localhost при ошибке парсинга
       - Гарантируется минимум 1 попытка даже если maxRetries=0
       - Корректное построение URL через `new URL()` (избегает проблем с //)
       - Экспоненциальная задержка (1s, 2s) + jitter (до 250ms)
       - Jitter предотвращает thundering herd эффект
       - Расширенная проверка сетевых ошибок (ECONNREFUSED, ECONNRESET, EAI_AGAIN, ENOTFOUND, ETIMEDOUT)
+      - `finally` блок гарантирует очистку timeout
+    - **Observability:**
+      - Логирование использует `maxAttempts` вместо `maxRetries` для ясности
+      - Все попытки и задержки видны в логах
     - **URL приоритет:** NEXTAUTH_URL > NEXT_PUBLIC_APP_URL > localhost
   - Файлы: `app/api/revalidate/route.ts`, `lib/revalidate.ts`
 
