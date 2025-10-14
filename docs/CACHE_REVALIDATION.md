@@ -47,7 +47,7 @@ revalidateTag('videos');
 
 Воркер работает как отдельный Node.js процесс, вне контекста Next.js Server Actions. При попытке вызвать `revalidateTag` возникает ошибка:
 
-```
+```text
 Error: Invariant: static generation store missing in revalidateTag videos
 ```
 
@@ -60,6 +60,9 @@ Error: Invariant: static generation store missing in revalidateTag videos
 ```typescript
 import { revalidateTag } from 'next/cache';
 
+// Разрешенные теги для инвалидации кэша
+const ALLOWED_TAGS = ['videos'] as const;
+
 export async function POST(request: NextRequest) {
   const { tag, secret } = await request.json();
   
@@ -68,29 +71,92 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   
+  // Проверка типа
+  if (!tag || typeof tag !== 'string') {
+    return NextResponse.json(
+      { error: 'Tag is required and must be a string' },
+      { status: 400 }
+    );
+  }
+  
+  // Проверка allowlist
+  if (!ALLOWED_TAGS.includes(tag as any)) {
+    return NextResponse.json({ error: 'Invalid tag' }, { status: 400 });
+  }
+  
   revalidateTag(tag);
   return NextResponse.json({ revalidated: true });
 }
 ```
+
+**Защита:**
+- Опциональная проверка secret
+- Валидация типа тега
+- Allowlist разрешенных тегов (предотвращает злоупотребление)
+- Rate limiting должен быть настроен на уровне nginx/load balancer
 
 #### Шаг 2: Утилита для воркера
 
 Создана функция `lib/revalidate.ts`:
 
 ```typescript
-export async function revalidateCacheFromWorker(tag: string): Promise<boolean> {
+export async function revalidateCacheFromWorker(
+  tag: string,
+  maxRetries: number = 2
+): Promise<boolean> {
   const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
   const secret = process.env.REVALIDATE_SECRET;
 
-  const response = await fetch(`${baseUrl}/api/revalidate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tag, secret }),
-  });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-  return response.ok;
+      const response = await fetch(`${baseUrl}/api/revalidate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag, secret }),
+        signal: controller.signal, // 5 секунд timeout
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        // Не ретраим при 400/401 (клиентские ошибки)
+        if (response.status === 400 || response.status === 401) {
+          return false;
+        }
+        
+        // Ретраим при 5xx с экспоненциальной задержкой
+        if (attempt < maxRetries) {
+          await new Promise(resolve => 
+            setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
+          );
+          continue;
+        }
+      }
+
+      return response.ok;
+    } catch (error) {
+      // Ретраим при timeout или сетевых ошибках
+      if (attempt < maxRetries) {
+        await new Promise(resolve => 
+          setTimeout(resolve, Math.pow(2, attempt - 1) * 1000)
+        );
+        continue;
+      }
+      return false;
+    }
+  }
+  return false;
 }
 ```
+
+**Надежность:**
+- Timeout 5 секунд (предотвращает зависание)
+- Автоматический retry при транзиентных ошибках (до 2 попыток)
+- Экспоненциальная задержка между попытками (1s, 2s)
+- Не ретраит при клиентских ошибках (400/401)
 
 #### Шаг 3: Использование в воркере
 
@@ -117,7 +183,7 @@ if (!shouldRetry) {
 
 ## Архитектура
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                     Client Browser                          │
 └─────────────────────────────────────────────────────────────┘
@@ -185,9 +251,16 @@ REVALIDATE_SECRET=your-random-secret
 
 1. ✅ **Немедленное обновление:** Видео появляются в дашборде сразу после создания
 2. ✅ **Работает из воркера:** Обход ограничения Next.js static generation store
-3. ✅ **Отказоустойчивость:** Ошибка инвалидации кэша не прерывает основной процесс
-4. ✅ **Масштабируемость:** Можно использовать для других тегов кэша
-5. ✅ **Простота:** Минимальный код, используем стандартные механизмы Next.js
+3. ✅ **Отказоустойчивость:** 
+   - Ошибка инвалидации кэша не прерывает основной процесс
+   - Автоматические retry при транзиентных ошибках
+   - Timeout предотвращает зависание
+4. ✅ **Безопасность:**
+   - Allowlist разрешенных тегов
+   - Опциональная защита через secret
+   - Не ретраит при клиентских ошибках
+5. ✅ **Масштабируемость:** Можно использовать для других тегов кэша
+6. ✅ **Простота:** Минимальный код, используем стандартные механизмы Next.js
 
 ## Альтернативные решения (не использованы)
 
@@ -214,7 +287,7 @@ REVALIDATE_SECRET=your-random-secret
 
 Воркер логирует результат инвалидации:
 
-```
+```text
 [WORKER] DEBUG: Cache revalidated successfully {"tag":"videos"}
 [WORKER] WARN: Cache revalidation failed (non-critical) {"error":"..."}
 ```
