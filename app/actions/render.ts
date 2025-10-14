@@ -48,6 +48,10 @@ export const renderVideo = async (videoId: string) => {
                     data: { videoUrl, processing: false }
                 })
 
+                // Примечание: revalidateTag не используется здесь, так как эта функция
+                // вызывается из воркера (вне контекста Next.js Server Actions)
+                // Кэш будет обновлен при создании видео или при ручном обновлении дашборда
+
                 return videoUrl;
             }
 

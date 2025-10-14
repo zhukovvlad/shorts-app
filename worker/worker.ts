@@ -5,6 +5,7 @@ import { prisma, withRetry } from "@/app/lib/db";
 import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
 import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 import { workerLogger as logger } from "@/lib/logger";
+import { revalidateCacheFromWorker } from "@/lib/revalidate";
 
 // Функция для определения, стоит ли делать ретрай
 // Проверяет network/timeout/DNS/socket ошибки, избегая маскировки логических багов
@@ -164,6 +165,11 @@ const worker = new Worker('video-processing', async (job: Job) => {
             userId: video.userId
         }).catch(err => logger.warn('Redis progress update failed', { error: err.message }));
 
+        // Инвалидируем кэш видео для обновления дашборда
+        await revalidateCacheFromWorker('videos').catch(err => 
+            logger.warn('Cache revalidation failed (non-critical)', { error: err })
+        );
+
         // Удаляем прогресс через 30 секунд - ЗАКОММЕНТИРОВАНО для экономии Redis запросов
         // TTL автоматически удалит через 1 час (VIDEO_PROGRESS_TTL)
         // setTimeout(() => {
@@ -241,6 +247,11 @@ const worker = new Worker('video-processing', async (job: Job) => {
                         failed: true,
                     }
                 })
+            );
+            
+            // Инвалидируем кэш для отображения failed статуса в дашборде
+            await revalidateCacheFromWorker('videos').catch(err => 
+                logger.warn('Cache revalidation failed (non-critical)', { error: err })
             );
         }
 
