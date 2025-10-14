@@ -20,33 +20,39 @@ export async function revalidateCacheFromWorker(
 ): Promise<boolean> {
   // Используем NEXTAUTH_URL с fallback на NEXT_PUBLIC_APP_URL
   const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  // Используем URL API для корректного построения endpoint (избегаем // и других проблем)
-  const endpointUrl = new URL('/api/revalidate', base).toString();
+  
+  // Безопасное построение URL с fallback на localhost при ошибке
+  let endpointUrl: string;
+  try {
+    // Используем URL API для корректного построения endpoint (избегаем // и других проблем)
+    endpointUrl = new URL('/api/revalidate', base).toString();
+  } catch {
+    logger.warn('Invalid base URL for revalidation, falling back to localhost', { base });
+    endpointUrl = 'http://localhost:3000/api/revalidate';
+  }
+  
   const secret = process.env.REVALIDATE_SECRET;
 
   // Гарантируем хотя бы одну попытку даже если maxRetries=0
   const attemptsAllowed = Math.max(1, maxRetries);
 
   for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
+    // Создаем контроллер для timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд timeout
+
     try {
-      // Создаем контроллер для timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд timeout
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tag, secret }),
+        signal: controller.signal,
+      });
 
-      try {
-        const response = await fetch(endpointUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ tag, secret }),
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
           
           // Не ретраим при клиентских ошибках (4xx кроме 429)
           // 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 
@@ -61,15 +67,16 @@ export async function revalidateCacheFromWorker(
               attempt,
             });
             return false;
-          }
+        }
 
-          // Ретраим при серверных ошибках (5xx) или 429 Too Many Requests
-          // 5xx = транзиентные проблемы сервера, 429 = rate limiting
-          const shouldRetry = 
-            (response.status >= 500 && response.status < 600) || 
-            response.status === 429;
+        // Ретраим при серверных ошибках (5xx), 429 Too Many Requests, и 408 Request Timeout
+        // 5xx = транзиентные проблемы сервера, 429 = rate limiting, 408 = таймаут запроса
+        const shouldRetry = 
+          (response.status >= 500 && response.status < 600) || 
+          response.status === 429 ||
+          response.status === 408;
 
-          if (shouldRetry && attempt < attemptsAllowed) {
+        if (shouldRetry && attempt < attemptsAllowed) {
             let delay: number;
             
             // Обработка заголовка Retry-After для 429 Too Many Requests
@@ -108,7 +115,7 @@ export async function revalidateCacheFromWorker(
               tag,
               status: response.status,
               attempt,
-              maxRetries: attemptsAllowed,
+              maxAttempts: attemptsAllowed,
               retryAfterMs: delay,
             });
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -127,9 +134,6 @@ export async function revalidateCacheFromWorker(
         const data = await response.json();
         logger.debug('Cache revalidated successfully', { tag, data, attempt });
         return true;
-      } finally {
-        clearTimeout(timeoutId);
-      }
     } catch (error) {
       const isTimeout = error instanceof Error && error.name === 'AbortError';
       // Расширенная проверка сетевых ошибок (undici/Node.js паттерны)
@@ -149,7 +153,7 @@ export async function revalidateCacheFromWorker(
           isTimeout,
           isNetworkError,
           attempt,
-          maxRetries: attemptsAllowed,
+          maxAttempts: attemptsAllowed,
           retryAfterMs: delay,
         });
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -161,9 +165,11 @@ export async function revalidateCacheFromWorker(
         tag,
         error: error instanceof Error ? error.message : String(error),
         attempt,
-        maxRetries: attemptsAllowed,
+        maxAttempts: attemptsAllowed,
       });
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

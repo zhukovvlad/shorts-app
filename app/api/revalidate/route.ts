@@ -34,16 +34,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { tag, secret } = body;
+    let { tag, secret } = body;
 
     // Опциональная защита через secret (можно добавить переменную окружения)
     // Note: Rate limiting должен быть настроен на уровне nginx/load balancer
     // В production рекомендуется требовать secret для предотвращения злоупотребления
     const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET;
     
-    // Предупреждение если secret не установлен в production
+    // Fail-closed: отклоняем запросы если secret не установлен в production
     if (process.env.NODE_ENV === 'production' && !REVALIDATE_SECRET) {
       logger.error('REVALIDATE_SECRET not set in production - endpoint is unprotected!');
+      return NextResponse.json(
+        { error: 'Endpoint disabled: missing REVALIDATE_SECRET' },
+        { status: 503 }
+      );
     }
 
     if (REVALIDATE_SECRET && secret !== REVALIDATE_SECRET) {
@@ -57,6 +61,16 @@ export async function POST(request: NextRequest) {
     if (!tag || typeof tag !== 'string') {
       return NextResponse.json(
         { error: 'Tag is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    // Нормализуем тег (убираем пробелы)
+    tag = tag.trim();
+
+    if (!tag) {
+      return NextResponse.json(
+        { error: 'Tag cannot be empty' },
         { status: 400 }
       );
     }
