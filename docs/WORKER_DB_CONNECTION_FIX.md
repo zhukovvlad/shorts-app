@@ -194,10 +194,46 @@ process.on('unhandledRejection', (reason: unknown) => { // ✅ ДОБАВЛЕН�
 
 ## Логи после исправления
 
-Вместо ошибки теперь должны быть логи:
+Теперь при успешном завершении работы worker вы увидите информационные логи (INFO), а не ошибки:
+
 ```text
-[WORKER] INFO: Graceful shutdown initiated {"signal":"SIGTERM"}
-[WORKER] INFO: Worker closed successfully
+[2025-10-13T20:54:37.611Z] [WORKER] INFO: ✅ Completed processing {"videoId":"188f00f1-fbdf-4c50-8e5c-38bbaa379dea"}
+[2025-10-13T20:54:37.713Z] [WORKER] INFO: ✅ Job completed successfully {"jobId":"9"}
+[2025-10-13T20:54:38.000Z] [WORKER] INFO: 🛑 Graceful shutdown initiated {"signal":"SIGTERM"}
+[2025-10-13T20:54:38.050Z] [WORKER] INFO: ✅ Worker closed successfully
+[2025-10-13T20:54:38.100Z] [WORKER] INFO: ✅ Redis connection closed successfully
+[2025-10-13T20:54:38.150Z] [WORKER] INFO: ✅ Database connection closed successfully
+[2025-10-13T20:54:38.200Z] [WORKER] INFO: 👋 Shutdown complete, exiting with code 0 {"hadError":false,"signal":"SIGTERM"}
+```
+
+### ⚠️ Важное примечание о Prisma debug-логах
+
+~~Вы можете увидеть сообщение от Prisma:~~
+```
+prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }
+```
+
+**Это сообщение больше не должно появляться** после изменений в `db.ts`:
+- ✅ Отключено логирование Prisma в production (только warnings в dev)
+- ✅ Worker явно закрывает соединения и логирует это как INFO
+- ✅ Все успешные операции помечены эмодзи ✅ для быстрого визуального поиска
+
+Если вы всё же видите debug-сообщения от Prisma (префикс `prisma:`), это внутренние telemetry-логи,
+которые не являются ошибками приложения и могут быть безопасно проигнорированы.
+
+### 📊 Пример полного цикла обработки
+
+```text
+[WORKER] INFO: 🚀 Worker started, waiting for jobs
+[WORKER] INFO: Starting new job {"videoId":"xxx"}
+[WORKER] INFO: Processing step: script
+[WORKER] INFO: Processing step: audio
+[WORKER] INFO: Processing step: captions
+[WORKER] INFO: Processing step: images
+[WORKER] INFO: Processing step: render
+[WORKER] INFO: ✅ Completed processing {"videoId":"xxx"}
+[WORKER] INFO: ✅ Job completed successfully {"jobId":"1"}
+```
 [WORKER] INFO: Redis connection closed successfully
 [WORKER] INFO: Prisma connection closed successfully
 ```

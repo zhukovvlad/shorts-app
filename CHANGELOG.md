@@ -5,6 +5,44 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.5] - 2025-10-14
+
+### Исправлено
+- **Logging: Убраны вводящие в заблуждение "error" сообщения от Prisma при успешном завершении**
+  - Отключено логирование ошибок Prisma в production (`log: []` вместо `log: ["error"]`)
+  - В development режиме выводятся только warnings (`log: ["warn"]`)
+  - Устранено сообщение `prisma:error Error in PostgreSQL connection: Error { kind: Closed, cause: None }`
+  - Это сообщение появлялось после успешного завершения задач и было техническим debug-логом
+  - Файл: `app/lib/db.ts`
+
+### Улучшено
+- **Logging: Визуальные эмодзи-индикаторы в логах Worker для быстрой идентификации**
+  - ✅ — успешное завершение операций (INFO level)
+  - ❌ — ошибки (ERROR level)
+  - 🛑 — начало graceful shutdown
+  - 👋 — финальное завершение процесса
+  - 🚀 — старт воркера
+  - Файл: `worker/worker.ts`
+
+- **Logging: Улучшенные сообщения при graceful shutdown Worker**
+  - Переименовано "Prisma connection" → "Database connection" (более понятно)
+  - Добавлено финальное сообщение с exit code и статусом ошибок
+  - Пример: `👋 Shutdown complete, exiting with code 0 {"hadError":false,"signal":"SIGTERM"}`
+  - Теперь чётко видно, был ли shutdown успешным или с ошибками
+  - Файл: `worker/worker.ts`
+
+### Документация
+- **Добавлен `docs/LOGGING_IMPROVEMENTS.md`** — детальное описание улучшений логирования
+  - Объяснение проблемы с Prisma debug-логами
+  - Примеры логов до и после изменений
+  - Сценарии: успешное выполнение, graceful shutdown, ошибки
+  - Миграционные заметки (обратная совместимость)
+
+- **Обновлен `docs/WORKER_DB_CONNECTION_FIX.md`** — актуализированы примеры логов
+  - Добавлены новые форматы сообщений с эмодзи
+  - Пример полного цикла обработки видео
+  - Уточнено что Prisma debug-логи больше не должны появляться
+
 ## [1.6.4] - 2025-10-13
 
 ### Добавлено
