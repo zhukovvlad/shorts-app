@@ -172,7 +172,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
         //     );
         // }, 30000);
 
-        logger.info('Completed processing', { videoId });
+        logger.info('✅ Completed processing', { videoId });
     } catch (error) {
         logger.error('Error processing video', {
             videoId,
@@ -260,11 +260,11 @@ const worker = new Worker('video-processing', async (job: Job) => {
 });
 
 worker.on('completed', (job) => {
-    logger.info('Job completed', { jobId: job?.id });
+    logger.info('✅ Job completed successfully', { jobId: job?.id });
 })
 
 worker.on('failed', (job, err) => {
-    logger.error('Job failed', {
+    logger.error('❌ Job failed', {
         jobId: job?.id,
         error: err.message
     });
@@ -276,7 +276,7 @@ worker.on('error', (err) => {
     });
 })
 
-logger.info('Worker started, waiting for jobs', { version: '2' });
+logger.info('🚀 Worker started, waiting for jobs', { version: '2' });
 
 // Тестируем подключение к Redis при старте
 testRedisConnection().then(success => {
@@ -299,7 +299,7 @@ const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) =>
   }
   
   isShuttingDown = true;
-  logger.info('Graceful shutdown initiated', { signal, isFatal: !!fatalError });
+  logger.info('🛑 Graceful shutdown initiated', { signal, isFatal: !!fatalError });
   
   // Best-effort закрытие всех ресурсов (не прерываем на первой ошибке)
   // hadError = true если были ошибки при закрытии ресурсов ИЛИ если это фатальная ошибка
@@ -308,10 +308,10 @@ const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) =>
   // Закрываем Worker
   try {
     await worker.close();
-    logger.info('Worker closed successfully');
+    logger.info('✅ Worker closed successfully');
   } catch (error) {
     hadError = true;
-    logger.error('Error closing worker', { 
+    logger.error('❌ Error closing worker', { 
       error: error instanceof Error ? error.message : String(error) 
     });
   }
@@ -319,10 +319,10 @@ const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) =>
   // Закрываем Redis
   try {
     await connection.quit();
-    logger.info('Redis connection closed successfully');
+    logger.info('✅ Redis connection closed successfully');
   } catch (error) {
     hadError = true;
-    logger.error('Error closing Redis', { 
+    logger.error('❌ Error closing Redis', { 
       error: error instanceof Error ? error.message : String(error) 
     });
   }
@@ -330,15 +330,17 @@ const gracefulShutdown = async (signal: string, fatalError?: Error | boolean) =>
   // Закрываем Prisma
   try {
     await prisma.$disconnect();
-    logger.info('Prisma connection closed successfully');
+    logger.info('✅ Database connection closed successfully');
   } catch (error) {
     hadError = true;
-    logger.error('Error closing Prisma', { 
+    logger.error('❌ Error closing database', { 
       error: error instanceof Error ? error.message : String(error) 
     });
   }
   
-  process.exit(hadError ? 1 : 0);
+  const exitCode = hadError ? 1 : 0;
+  logger.info(`👋 Shutdown complete, exiting with code ${exitCode}`, { hadError, signal });
+  process.exit(exitCode);
 };
 
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));

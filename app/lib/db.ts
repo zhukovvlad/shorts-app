@@ -46,7 +46,8 @@ export const prisma =
 				url: resolvedDbUrl,
 			},
 		},
-		log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+		// В production не выводим ошибки о закрытии соединений (это нормально при shutdown)
+		log: process.env.NODE_ENV === "development" ? ["warn"] : [],
 	});
 
 /**
