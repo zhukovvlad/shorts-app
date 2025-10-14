@@ -18,17 +18,23 @@ export async function revalidateCacheFromWorker(
   tag: string,
   maxRetries: number = 2
 ): Promise<boolean> {
-  const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+  // Используем NEXTAUTH_URL с fallback на NEXT_PUBLIC_APP_URL
+  const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  // Используем URL API для корректного построения endpoint (избегаем // и других проблем)
+  const endpointUrl = new URL('/api/revalidate', base).toString();
   const secret = process.env.REVALIDATE_SECRET;
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  // Гарантируем хотя бы одну попытку даже если maxRetries=0
+  const attemptsAllowed = Math.max(1, maxRetries);
+
+  for (let attempt = 1; attempt <= attemptsAllowed; attempt++) {
     try {
       // Создаем контроллер для timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 секунд timeout
 
       try {
-        const response = await fetch(`${baseUrl}/api/revalidate`, {
+        const response = await fetch(endpointUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -42,8 +48,12 @@ export async function revalidateCacheFromWorker(
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           
-          // Не ретраим при 400/401 ошибках (неправильный запрос)
-          if (response.status === 400 || response.status === 401) {
+          // Не ретраим при клиентских ошибках (4xx кроме 429)
+          // 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 
+          // 405 Method Not Allowed, 422 Unprocessable Entity и т.д.
+          // Эти ошибки указывают на проблемы с конфигурацией или авторизацией, которые не исчезнут при повторе
+          const nonRetryable4xx = [400, 401, 403, 404, 405, 422];
+          if (nonRetryable4xx.includes(response.status)) {
             logger.warn('Failed to revalidate cache (client error, no retry)', {
               tag,
               status: response.status,
@@ -53,14 +63,52 @@ export async function revalidateCacheFromWorker(
             return false;
           }
 
-          // Ретраим при серверных ошибках (5xx)
-          if (attempt < maxRetries) {
-            const delay = Math.pow(2, attempt - 1) * 1000; // Экспоненциальная задержка
+          // Ретраим при серверных ошибках (5xx) или 429 Too Many Requests
+          // 5xx = транзиентные проблемы сервера, 429 = rate limiting
+          const shouldRetry = 
+            (response.status >= 500 && response.status < 600) || 
+            response.status === 429;
+
+          if (shouldRetry && attempt < attemptsAllowed) {
+            let delay: number;
+            
+            // Обработка заголовка Retry-After для 429 Too Many Requests
+            // RFC 7231: Retry-After может быть задержкой в секундах или HTTP-date
+            if (response.status === 429) {
+              const retryAfter = response.headers.get('Retry-After');
+              if (retryAfter) {
+                // Retry-After может быть в секундах или HTTP-date
+                const retryAfterSeconds = parseInt(retryAfter, 10);
+                if (!isNaN(retryAfterSeconds)) {
+                  // Формат: количество секунд (например, "120")
+                  delay = retryAfterSeconds * 1000;
+                } else {
+                  // Формат: HTTP-date (например, "Wed, 21 Oct 2015 07:28:00 GMT")
+                  const retryDate = new Date(retryAfter);
+                  const now = new Date();
+                  delay = Math.max(0, retryDate.getTime() - now.getTime());
+                }
+                // Ограничиваем максимальную задержку 60 секундами для безопасности
+                // Это предотвращает зависание воркера при некорректных значениях Retry-After
+                delay = Math.min(delay, 60000);
+              } else {
+                // Если заголовка нет, используем экспоненциальную задержку
+                delay = Math.pow(2, attempt - 1) * 1000;
+              }
+            } else {
+              // Для 5xx используем экспоненциальную задержку: 1s, 2s, 4s, ...
+              delay = Math.pow(2, attempt - 1) * 1000;
+            }
+
+            // Добавляем небольшой jitter для предотвращения thundering herd
+            const jitter = Math.floor(Math.random() * 250);
+            delay = delay + jitter;
+
             logger.warn('Failed to revalidate cache, retrying', {
               tag,
               status: response.status,
               attempt,
-              maxRetries,
+              maxRetries: attemptsAllowed,
               retryAfterMs: delay,
             });
             await new Promise(resolve => setTimeout(resolve, delay));
@@ -84,22 +132,24 @@ export async function revalidateCacheFromWorker(
       }
     } catch (error) {
       const isTimeout = error instanceof Error && error.name === 'AbortError';
+      // Расширенная проверка сетевых ошибок (undici/Node.js паттерны)
       const isNetworkError = error instanceof Error && (
-        error.message.includes('fetch failed') ||
-        error.message.includes('network') ||
-        error.message.includes('ECONNREFUSED')
+        /fetch failed|network|ECONNREFUSED|ECONNRESET|EAI_AGAIN|ENOTFOUND|ETIMEDOUT/i.test(error.message)
       );
 
       // Ретраим только при timeout или сетевых ошибках
-      if ((isTimeout || isNetworkError) && attempt < maxRetries) {
-        const delay = Math.pow(2, attempt - 1) * 1000; // Экспоненциальная задержка
+      if ((isTimeout || isNetworkError) && attempt < attemptsAllowed) {
+        const baseDelay = Math.pow(2, attempt - 1) * 1000; // Экспоненциальная задержка
+        const jitter = Math.floor(Math.random() * 250); // Добавляем jitter
+        const delay = baseDelay + jitter;
+        
         logger.warn('Error revalidating cache (retrying)', {
           tag,
           error: error instanceof Error ? error.message : String(error),
           isTimeout,
           isNetworkError,
           attempt,
-          maxRetries,
+          maxRetries: attemptsAllowed,
           retryAfterMs: delay,
         });
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -111,7 +161,7 @@ export async function revalidateCacheFromWorker(
         tag,
         error: error instanceof Error ? error.message : String(error),
         attempt,
-        maxRetries,
+        maxRetries: attemptsAllowed,
       });
       return false;
     }

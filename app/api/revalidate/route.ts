@@ -5,6 +5,11 @@ import { logger } from '@/lib/logger';
 // Разрешенные теги для инвалидации кэша
 // Это предотвращает потенциальное злоупотребление endpoint
 const ALLOWED_TAGS = ['videos'] as const;
+type AllowedTag = typeof ALLOWED_TAGS[number];
+
+// Type guard для проверки тега в allowlist
+const isAllowedTag = (t: string): t is AllowedTag =>
+  (ALLOWED_TAGS as readonly string[]).includes(t);
 
 /**
  * API endpoint для инвалидации кэша
@@ -17,12 +22,30 @@ const ALLOWED_TAGS = ['videos'] as const;
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // Безопасный парсинг JSON
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      logger.warn('Revalidate: invalid JSON body');
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+
     const { tag, secret } = body;
 
     // Опциональная защита через secret (можно добавить переменную окружения)
     // Note: Rate limiting должен быть настроен на уровне nginx/load balancer
+    // В production рекомендуется требовать secret для предотвращения злоупотребления
     const REVALIDATE_SECRET = process.env.REVALIDATE_SECRET;
+    
+    // Предупреждение если secret не установлен в production
+    if (process.env.NODE_ENV === 'production' && !REVALIDATE_SECRET) {
+      logger.error('REVALIDATE_SECRET not set in production - endpoint is unprotected!');
+    }
+
     if (REVALIDATE_SECRET && secret !== REVALIDATE_SECRET) {
       logger.warn('Revalidate: unauthorized attempt', { tag });
       return NextResponse.json(
@@ -38,8 +61,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Проверяем, что тег находится в разрешенном списке
-    if (!ALLOWED_TAGS.includes(tag as any)) {
+    // Проверяем, что тег находится в разрешенном списке (type-safe)
+    if (!isAllowedTag(tag)) {
       logger.warn('Revalidate: invalid tag attempted', { tag });
       return NextResponse.json(
         { error: 'Invalid tag' },
