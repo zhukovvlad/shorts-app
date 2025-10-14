@@ -40,16 +40,16 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
         videoId: video.videoId,
     })
     return (
-        <div className='border bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 relative'>
+        <div className='group border bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 relative'>
             <Link href={`/videos/${video.videoId}`} className="block">
-                <div className="aspect-video bg-gray-800 relative">
+                <div className="aspect-video bg-gray-800 relative overflow-hidden">
                     {video.thumbnail && !imageError ? (
                         <Image
                             src={video.thumbnail}
                             alt="Video Thumbnail"
                             fill
                             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            className="object-cover"
+                            className="object-cover transition-transform duration-700 group-hover:scale-110"
                             priority={priority}
                             loading={priority ? undefined : "lazy"}
                             onError={() => {
@@ -86,10 +86,10 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                         <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white cursor-pointer"
+                            className="h-8 w-8 p-0 bg-black/50 hover:bg-black/70 text-white cursor-pointer transition-transform duration-200 group-hover:scale-110"
                             onClick={(e) => e.preventDefault()}
                         >
-                            <MoreVertical className="h-4 w-4" />
+                            <MoreVertical className="h-4 w-4 transition-transform duration-200" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-48" align="end">
@@ -97,14 +97,14 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                             onSelect={(e) => { e.stopPropagation(); handleDownload(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
-                            <Download className="mr-2 h-4 w-4" />
+                            <Download className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
                             <span>Download</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onSelect={(e) => { e.stopPropagation(); handleCopyLink(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
-                            <Copy className="mr-2 h-4 w-4" />
+                            <Copy className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
                             <span>Copy Link</span>
                         </DropdownMenuItem>
                         <AlertDialog>
@@ -113,7 +113,7 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                                     onSelect={(e) => e.preventDefault()}
                                     className="text-red-400 hover:bg-red-950 focus:bg-red-950 hover:text-red-400 focus:text-red-400 cursor-pointer"
                                 >
-                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    <Trash2 className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
                                     <span>Delete</span>
                                 </DropdownMenuItem>
                             </AlertDialogTrigger>
