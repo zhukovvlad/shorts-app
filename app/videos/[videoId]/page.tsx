@@ -107,7 +107,10 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                                 </div>
                             </div>
                             <div className="mt-4 p-4 rounded-md bg-neutral-900/60 backdrop-blur-sm border border-white/10 w-full max-w-3xl max-h-64 sm:max-h-80 md:max-h-[420px] overflow-auto">
-                                <TypingAnimation className="text-sm leading-relaxed text-transparent bg-clip-text bg-gradient-to-r from-gray-300 via-gray-100 to-gray-400 whitespace-pre-wrap break-words">
+                                <TypingAnimation 
+                                    className="text-sm leading-relaxed text-transparent bg-clip-text bg-gradient-to-r from-gray-300 via-gray-100 to-gray-400 whitespace-pre-wrap break-words"
+                                    duration={25}
+                                >
                                     {transcript}
                                 </TypingAnimation>
                             </div>
