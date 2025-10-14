@@ -103,8 +103,7 @@ export async function revalidateCacheFromWorker(
                 }
                 // Ограничиваем максимальную задержку 60 секундами для безопасности
                 // Это предотвращает зависание воркера при некорректных значениях Retry-After
-                // Math.max(0, delay) защищает от отрицательных значений
-                delay = Math.min(Math.max(0, delay), 60000);
+                delay = clampDelay(delay);
               } else {
                 // Если заголовка нет, используем экспоненциальную задержку
                 delay = Math.pow(2, attempt - 1) * 1000;
