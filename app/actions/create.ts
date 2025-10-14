@@ -24,6 +24,7 @@ import { randomUUID } from "crypto"
 import { prisma } from "../lib/db"
 import { videoQueue } from "../lib/queue"
 import { logger } from "@/lib/logger"
+import { revalidateTag } from "next/cache"
 
 /**
  * Валидирует и очищает входной промпт для создания видео
@@ -217,6 +218,9 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       jobId: job.id,
       executionTime
     });
+
+    // Инвалидируем кэш видео для немедленного отображения нового видео в дашборде
+    revalidateTag('videos');
 
     return {
       videoId,

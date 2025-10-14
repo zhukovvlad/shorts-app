@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "./db";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 export async function deleteVideo(videoId: string) {
     try {
@@ -17,6 +17,7 @@ export async function deleteVideo(videoId: string) {
         })
 
         revalidatePath('/dashboard')
+        revalidateTag('videos')
 
         return { success: true }
     } catch {

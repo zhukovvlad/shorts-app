@@ -5,6 +5,23 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.6] - 2025-10-14
+
+### Исправлено
+- **Dashboard: Новое видео теперь отображается сразу после создания без необходимости ручного обновления страницы**
+  - Добавлена инвалидация кэша `revalidateTag('videos')` после создания нового видео в `createVideo`
+  - Создан API endpoint `/api/revalidate` для инвалидации кэша из воркера
+  - Добавлена утилита `revalidateCacheFromWorker` для вызова из контекста Node.js процесса
+  - Воркер теперь инвалидирует кэш после успешного завершения или финальной ошибки видео
+  - Добавлена инвалидация кэша при удалении видео
+  - **Исправлена ошибка:** `"Invariant: static generation store missing in revalidateTag"` при вызове из воркера
+    - `revalidateTag` работает только в контексте Next.js Server Actions
+    - Решение: HTTP запрос к API endpoint вместо прямого вызова `revalidateTag`
+  - Решена проблема с `unstable_cache` который кэшировал список видео на 30 секунд
+  - Теперь после редиректа на дашборд видео отображается мгновенно
+  - Файлы: `app/actions/create.ts`, `app/actions/render.ts`, `app/lib/deleteVideo.ts`, 
+    `app/api/revalidate/route.ts`, `lib/revalidate.ts`, `worker/worker.ts`
+
 ## [1.6.5] - 2025-10-14
 
 ### Исправлено
