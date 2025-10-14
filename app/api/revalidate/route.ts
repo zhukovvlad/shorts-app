@@ -36,6 +36,11 @@ export async function POST(request: NextRequest) {
 
     let { tag, secret } = body;
 
+    // Нормализуем secret (убираем пробелы если оператор случайно добавил)
+    if (typeof secret === 'string') {
+      secret = secret.trim();
+    }
+
     // Опциональная защита через secret (можно добавить переменную окружения)
     // Note: Rate limiting должен быть настроен на уровне nginx/load balancer
     // В production рекомендуется требовать secret для предотвращения злоупотребления

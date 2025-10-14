@@ -177,6 +177,7 @@ export async function revalidateCacheFromWorker(
 | 404 | ❌ Не ретраит | Not Found - endpoint не существует |
 | 405 | ❌ Не ретраит | Method Not Allowed - неправильный HTTP метод |
 | 408 | 🔄 Ретрай | Request Timeout - таймаут запроса на сервере |
+| 410 | ❌ Не ретраит | Gone - endpoint перманентно удален |
 | 422 | ❌ Не ретраит | Unprocessable Entity - невалидные данные |
 | 429 | 🔄 Ретрай | Too Many Requests - используем `Retry-After` если есть |
 | 500-599 | 🔄 Ретрай | Server Error - транзиентная ошибка сервера |
@@ -186,9 +187,11 @@ export async function revalidateCacheFromWorker(
 - **429 с `Retry-After`:** Используем указанное время (максимум 60 секунд)
   - Формат секунд: `Retry-After: 120` → 120 секунд
   - Формат даты: `Retry-After: Wed, 21 Oct 2015 07:28:00 GMT` → вычисляем разницу
+  - **Защита от NaN:** Если дата невалидная → fallback на экспоненциальную задержку
 - **429 без `Retry-After`:** Экспоненциальная задержка (1s, 2s)
 - **5xx ошибки:** Экспоненциальная задержка (1s, 2s)
 - **Network/Timeout:** Экспоненциальная задержка (1s, 2s)
+- **Все задержки:** Проверка `Number.isFinite()` и clamp в диапазон [0, 60000]ms
 
 #### Шаг 3: Использование в воркере
 
@@ -263,11 +266,26 @@ REVALIDATE_SECRET=your-random-secret-string
 
 API endpoint будет проверять secret перед инвалидацией кэша.
 
-### Почему это безопасно без secret?
+### ⚠️ ВАЖНО: Production требует REVALIDATE_SECRET
 
-1. **Локальный вызов:** В production воркер и Next.js app находятся на одном сервере
-2. **Ограниченная функциональность:** Endpoint только инвалидирует кэш, не изменяет данные
-3. **Rate limiting:** В production рекомендуется добавить rate limiting на уровне nginx/load balancer
+**В production endpoint работает только с установленным `REVALIDATE_SECRET`:**
+- ✅ **С secret:** Endpoint доступен и защищен от несанкционированных запросов
+- ❌ **Без secret:** Endpoint возвращает 503 Service Unavailable (fail-closed)
+
+**Для development/local среды:**
+Можно работать без secret для удобства разработки. Endpoint будет доступен без авторизации.
+
+### Почему fail-closed в production?
+
+1. **Безопасность по умолчанию:** Предотвращает случайное открытие endpoint без защиты
+2. **Явная конфигурация:** Оператор должен сознательно установить secret
+3. **Защита от злоупотребления:** Без secret любой может инвалидировать кэш приложения
+
+### Дополнительная защита (рекомендуется)
+
+1. **Rate limiting:** Настройте на уровне nginx/load balancer
+2. **Network isolation:** Воркер и Next.js app на одном сервере/сети
+3. **Trim secret:** Endpoint автоматически убирает пробелы из secret для предотвращения ошибок конфигурации
 
 ## Переменные окружения
 
@@ -279,7 +297,8 @@ NEXTAUTH_URL=https://your-domain.com
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 
 # Опциональный secret для защиты endpoint
-# Рекомендуется устанавливать в production
+# ⚠️ ОБЯЗАТЕЛЕН в production! Endpoint возвращает 503 без него.
+# В development можно опустить для удобства разработки
 REVALIDATE_SECRET=your-random-secret
 ```
 
