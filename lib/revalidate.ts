@@ -31,7 +31,11 @@ export async function revalidateCacheFromWorker(
     endpointUrl = 'http://localhost:3000/api/revalidate';
   }
   
-  const secret = process.env.REVALIDATE_SECRET;
+  // Нормализуем secret (убираем пробелы для соответствия с API route)
+  const secret = process.env.REVALIDATE_SECRET?.trim();
+
+  // Helper функция для clamp задержки в безопасный диапазон [0, 60000]ms
+  const clampDelay = (ms: number) => Math.min(Math.max(0, ms), 60000);
 
   // Гарантируем хотя бы одну попытку даже если maxAttempts=0
   const attemptsAllowed = Math.max(1, maxAttempts);
@@ -112,7 +116,8 @@ export async function revalidateCacheFromWorker(
 
             // Добавляем небольшой jitter для предотвращения thundering herd
             const jitter = Math.floor(Math.random() * 250);
-            delay = delay + jitter;
+            // Финальный clamp после jitter гарантирует безопасный диапазон [0, 60000]ms
+            delay = clampDelay(delay + jitter);
 
             logger.warn('Failed to revalidate cache, retrying', {
               tag,
@@ -148,7 +153,8 @@ export async function revalidateCacheFromWorker(
       if ((isTimeout || isNetworkError) && attempt < attemptsAllowed) {
         const baseDelay = Math.pow(2, attempt - 1) * 1000; // Экспоненциальная задержка
         const jitter = Math.floor(Math.random() * 250); // Добавляем jitter
-        const delay = baseDelay + jitter;
+        // Финальный clamp для безопасности
+        const delay = clampDelay(baseDelay + jitter);
         
         logger.warn('Error revalidating cache (retrying)', {
           tag,
