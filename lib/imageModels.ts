@@ -1,7 +1,7 @@
 /**
  * @fileoverview Конфигурация доступных моделей генерации изображений
  * 
- * Этот модуль содержит список всех поддерживаемых моделей Replicate
+ * Этот модуль содержит список всех поддерживаемых моделей Replicate и OpenAI
  * для генерации изображений с их характеристиками и параметрами.
  */
 
@@ -9,24 +9,47 @@ import { logger } from './logger';
 
 export type ImageProvider = 'replicate' | 'openai';
 
-export interface ImageModel {
+/**
+ * Базовые поля, общие для всех моделей
+ */
+interface BaseImageModel {
   id: string;
   name: string;
   description: string;
-  provider: ImageProvider;
-  replicateModel?: string; // Для Replicate моделей
-  openaiModel?: string; // Для OpenAI моделей
   defaultParams: Record<string, any>;
-  isPro?: boolean; // Платная модель
+  isPro?: boolean;
   speed: 'fast' | 'medium' | 'slow';
   quality: 'standard' | 'high' | 'ultra';
 }
 
 /**
+ * Модель Replicate - требует replicateModel
+ */
+export interface ReplicateImageModel extends BaseImageModel {
+  provider: 'replicate';
+  replicateModel: string;
+  openaiModel?: never;
+}
+
+/**
+ * Модель OpenAI - требует openaiModel
+ */
+export interface OpenAIImageModel extends BaseImageModel {
+  provider: 'openai';
+  openaiModel: string;
+  replicateModel?: never;
+}
+
+/**
+ * Discriminated union - гарантирует что модель имеет правильное поле в зависимости от провайдера
+ */
+export type ImageModel = ReplicateImageModel | OpenAIImageModel;
+
+/**
  * Дефолтная модель на случай если IMAGE_MODELS пуст
  * Используется как fallback для гарантии работоспособности системы
  */
-const FALLBACK_DEFAULT_MODEL: ImageModel = {
+const FALLBACK_DEFAULT_MODEL: ReplicateImageModel = {
   id: 'ideogram-v3-turbo',
   name: 'Ideogram V3 Turbo',
   description: 'Быстрая генерация реалистичных изображений',
@@ -152,11 +175,11 @@ export const IMAGE_MODELS: ImageModel[] = [
   {
     id: 'dall-e-2',
     name: 'DALL-E 2',
-    description: 'Более быстрая и экономичная модель OpenAI',
+    description: 'Более быстрая и экономичная модель OpenAI (автоматическая конвертация в 9:16)',
     provider: 'openai',
     openaiModel: 'dall-e-2',
     defaultParams: {
-      size: '512x512', // DALL-E 2 не поддерживает 9:16, будет обрезано
+      size: '512x512', // Генерирует 512x512, автоматически конвертируется в 9:16
     },
     speed: 'fast',
     quality: 'standard',
