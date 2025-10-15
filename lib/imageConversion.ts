@@ -1,6 +1,15 @@
 import sharp from "sharp";
 import { logger } from "@/lib/logger";
 
+// Target aspect ratio for vertical videos (9:16)
+const TARGET_ASPECT_RATIO = 9 / 16;
+
+// Standard height for vertical videos
+const TARGET_HEIGHT = 1792;
+
+// Tolerance for aspect ratio comparison (5%)
+const ASPECT_RATIO_TOLERANCE = 0.05;
+
 /**
  * Результат конвертации изображения
  */
@@ -30,11 +39,17 @@ export const convertTo9x16 = async (
   modelId: string
 ): Promise<ConversionResult> => {
   try {
+    // Validate input buffer
+    if (!inputBuffer || inputBuffer.length === 0) {
+      logger.error('Invalid input buffer: empty or null', { modelId });
+      throw new Error('Input buffer is empty or null');
+    }
+
     const metadata = await sharp(inputBuffer).metadata();
     const originalWidth = metadata.width || 512;
     const originalHeight = metadata.height || 512;
     const originalRatio = originalWidth / originalHeight;
-    const targetRatio = 9 / 16;
+    const targetRatio = TARGET_ASPECT_RATIO;
 
     logger.info('Converting image to 9:16 format', {
       modelId,
@@ -43,15 +58,15 @@ export const convertTo9x16 = async (
       targetRatio: targetRatio.toFixed(2)
     });
 
-    // Если уже близко к 9:16 (в пределах 5%), не обрабатываем
-    if (Math.abs(originalRatio - targetRatio) < 0.05) {
+    // Если уже близко к 9:16 (в пределах tolerance), не обрабатываем
+    if (Math.abs(originalRatio - targetRatio) < ASPECT_RATIO_TOLERANCE) {
       logger.info('Image already close to 9:16, skipping conversion');
       return { buffer: inputBuffer, converted: false };
     }
 
     // Целевые размеры для 9:16
     // Используем высоту как базу и вычисляем ширину
-    const targetHeight = 1792; // Стандартная высота для вертикальных видео
+    const targetHeight = TARGET_HEIGHT;
     const targetWidth = Math.round(targetHeight * targetRatio);
 
     // Используем cover для заполнения всего кадра с обрезкой

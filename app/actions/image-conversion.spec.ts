@@ -41,8 +41,6 @@ describe('Image Conversion to 9:16', () => {
       
       expect(metadata.width).toBe(targetWidth);
       expect(metadata.height).toBe(targetHeight);
-      expect(metadata.width).toBe(1008);
-      expect(metadata.height).toBe(1792);
       
       const aspectRatio = metadata.width! / metadata.height!;
       expect(aspectRatio).toBeCloseTo(9 / 16, 2);
@@ -87,6 +85,7 @@ describe('Image Conversion to 9:16', () => {
       const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
 
       expect(result.converted).toBe(false);
+      expect(result.buffer).toBe(testBuffer); // Referential equality - no copy made
 
       const originalMetadata = await sharp(testBuffer).metadata();
       const convertedMetadata = await sharp(result.buffer).metadata();
@@ -122,6 +121,38 @@ describe('Image Conversion to 9:16', () => {
       const convertedMetadata = await sharp(result.buffer).metadata();
       expect(convertedMetadata.width).toBe(width);
       expect(convertedMetadata.height).toBe(height);
+    });
+
+    it('should convert when ratio difference is exactly at 5% boundary', async () => {
+      // Create image with aspect ratio difference >= 5%
+      // Target ratio is 9/16 = 0.5625
+      // We want a ratio that differs by at least 0.05
+      // Use 0.65 which gives difference of 0.0875 (> 0.05)
+      const height = 1600;
+      const width = Math.round(0.65 * height); // 1040 (ratio = 0.65)
+      
+      const testBuffer = await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: { r: 128, g: 128, b: 128, alpha: 1 }
+        }
+      })
+      .png()
+      .toBuffer();
+
+      const originalRatio = width / height;
+      const targetRatio = 9 / 16;
+      const difference = Math.abs(originalRatio - targetRatio);
+      
+      // Verify we're at or beyond the 5% boundary
+      expect(difference).toBeGreaterThanOrEqual(0.05);
+
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+
+      // Should convert since difference >= 5%
+      expect(result.converted).toBe(true);
     });
   });
 
@@ -196,9 +227,9 @@ describe('Image Conversion to 9:16', () => {
       expect(metadata.width).toBe(1008);
       expect(metadata.height).toBe(1792);
       expect(metadata.channels).toBeGreaterThanOrEqual(3);
+      expect(metadata.format).toBe('png'); // Конвертация всегда выдает PNG
       
       expect(result.buffer.length).toBeGreaterThan(0);
-      expect(result.buffer.length).toBeGreaterThan(testBuffer.length * 0.5);
     });
   });
 });

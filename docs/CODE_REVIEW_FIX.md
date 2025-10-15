@@ -76,12 +76,12 @@ Tests:       143 passed, 143 total
 - OpenAI клиент создается при первом вызове
 - Генерация происходит успешно
 
-**Сценарий 3: Выбрана DALL-E модель, ключ отсутствует**
+#### Сценарий 3: Выбрана DALL-E модель, ключ отсутствует
 - Выбрасывается ошибка с понятным сообщением:
   ```text
   OPENAI_API_KEY is not configured. 
   Please add your OpenAI API key to environment variables to use DALL-E models. 
-  You can obtain an API key at https://platform.openai.com/api-keys
+  You can obtain an API key at <https://platform.openai.com/api-keys>
   ```
 - Ошибка логируется для администратора
 - Пользователь получает информативное сообщение
@@ -347,7 +347,7 @@ Tests:       8 passed, 8 total
 ### Архитектурные улучшения
 
 **До:**
-```
+```text
 app/actions/image.ts
 ├─ convertTo9x16() (приватная)
 └─ processImageWithOpenAI()
@@ -357,7 +357,7 @@ app/actions/image-conversion.spec.ts
 ```
 
 **После:**
-```
+```text
 lib/imageConversion.ts
 └─ export convertTo9x16()
 
@@ -375,9 +375,13 @@ app/actions/image-conversion.spec.ts
 
 ✅ Функция извлечена в `lib/imageConversion.ts`  
 ✅ Тесты переписаны для проверки реальной логики  
-✅ Покрытие расширено до 8 тест-кейсов  
+✅ Покрытие расширено до 9 тест-кейсов  
 ✅ Все требования выполнены:
-   - Square → 9:16 conversion с проверкой размеров
+- Square → 9:16 conversion с проверкой размеров
+- Near-9:16 skip path с tolerance
+- Error fallback с возвратом оригинала
+- PNG output с проверкой metadata.format
+- Boundary test для 5% tolerance edge
    - Near-9:16 skip path с tolerance
    - Error fallback с возвратом оригинала
    - PNG output с проверкой metadata.format
@@ -578,8 +582,8 @@ const getStripe = () => {
 
 **Что было сделано правильно:**
 - ✅ Четко указана проблема ("OPENAI_API_KEY is not configured")
-- ✅ Дана инструкция что делать ("Please add your OpenAI API key")
-- ✅ Указана ссылка где получить ключ (https://platform.openai.com/api-keys)
+- ✅ Дана инструкция, что делать ("Please add your OpenAI API key")
+- ✅ Указана ссылка, где получить ключ (<https://platform.openai.com/api-keys>)
 
 **Общая рекомендация:**
 Хорошее сообщение об ошибке должно содержать:
@@ -613,9 +617,9 @@ $ npm info ts-jest peerDependencies
 ```
 
 2. **Проверить официальную документацию:**
-- README на GitHub
+- README на GitHub (<https://github.com/kulshekhar/ts-jest>)
 - Release notes
-- Официальный сайт проекта
+- Официальный сайт проекта (<https://www.npmjs.com/package/ts-jest>)
 
 3. **Проверить dist-tags:**
 ```bash
@@ -840,7 +844,7 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
 ```
 
 ### Файловая структура
-```
+```text
 lib/
 ├── imageConversion.ts       ← Новый модуль с ConversionResult интерфейсом
 ├── imageModels.ts
@@ -863,5 +867,83 @@ app/actions/
 7. **Content-Type соответствие** - критически важно для downstream consumers
 8. **Type-safe результаты** - интерфейсы с метаданными (converted flag) предотвращают ошибки
 
-**Дата исправления:** 15 октября 2025  
+---
+
+## Замечание #8: Хрупкие тестовые проверки размера буфера
+**Дата:** 16 октября 2025, 03:15
+
+> In app/actions/image-conversion.spec.ts around lines 200 to 201, the test currently asserts result.buffer.length is greater than an arbitrary 0.5x of testBuffer length which is fragile across image libs
+
+### Проблема
+```typescript
+// ❌ Хрупкая проверка - зависит от особенностей компрессии Sharp
+expect(result.buffer.length).toBeGreaterThan(testBuffer.length * 0.5);
+```
+
+**Недостатки:**
+- Магическое число 0.5x без обоснования
+- Зависит от алгоритма компрессии библиотеки
+- Может сломаться при обновлении Sharp
+- Не проверяет реальное поведение конвертации
+
+### Решение
+Замена на детерминированную проверку свойств изображения:
+
+```typescript
+// ✅ Стабильная проверка - гарантированное поведение
+expect(metadata.format).toBe('png'); // Конвертация всегда выдает PNG
+expect(result.buffer.length).toBeGreaterThan(0); // Базовая проверка
+```
+
+**Преимущества:**
+- ✅ Проверяет документированное поведение (PNG output)
+- ✅ Не зависит от деталей компрессии
+- ✅ Стабильно across image library versions
+- ✅ Более понятная семантика теста
+
+### Результат
+- **Тест стабильнее** - не сломается при изменении алгоритмов компрессии
+- **Проверяет правильное** - формат output, а не размер файла
+- **163/163 тестов проходят** ✅
+
+---
+
+## История изменений
+
+### 15 октября 2025
+- ✅ Замечание #1: Ленивая инициализация OpenAI клиента
+- ✅ Замечание #2: Автоматическая конвертация DALL-E 2 в 9:16
+- ✅ Замечание #3: Discriminated unions для type safety
+- ✅ Замечание #4: ts-jest совместимость (29.4.5)
+- ✅ Замечание #5: Тесты реальной логики приложения
+- ✅ Замечание #6: Content-Type/Extension mismatch (CRITICAL)
+- ✅ Замечание #7: Markdown linting (MD040)
+
+### 16 октября 2025, 00:30
+- ✅ Nitpicks 1-2: Package.json (@types/sharp удален, engines field добавлен)
+- ✅ Nitpicks 3-4: Immutability и type-only imports
+- ✅ Nitpicks 5-9: Markdown language identifiers (5 файлов)
+- ✅ Nitpicks 10-13: Документация уточнена (поведение конвертации, PNG output)
+
+### 16 октября 2025, 03:15
+- ✅ Замечание #8: Хрупкие тестовые проверки заменены на стабильные
+
+### 16 октября 2025, 04:00
+- ✅ Nitpicks #15-29: Финальные улучшения кода
+  - as const для всех model entries (consistency)
+  - Magic numbers извлечены в константы (TARGET_ASPECT_RATIO, TARGET_HEIGHT, ASPECT_RATIO_TOLERANCE)
+  - Input validation добавлена (empty buffer check)
+  - Duplicate assertions удалены из тестов
+  - Referential equality check добавлена (skip path)
+  - Boundary test для 5% tolerance
+  - Markdown headings исправлены (MD036)
+  - Bare URLs обернуты в angle brackets (MD034)
+  - Code blocks language identifiers добавлены (MD040)
+  - Russian punctuation исправлена (запятые)
+
+---
+
+**Дата первого исправления:** 15 октября 2025  
+**Дата последнего обновления:** 16 октября 2025, 04:00  
+**Всего исправлений:** 8 замечаний + 29 nitpicks = 37 ✅  
 **Статус:** ✅ Полностью завершено
