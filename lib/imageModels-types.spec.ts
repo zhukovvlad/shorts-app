@@ -3,10 +3,12 @@
  */
 
 import { describe, it, expect } from '@jest/globals';
-import { 
+import type { 
   ImageModel, 
   ReplicateImageModel, 
   OpenAIImageModel,
+} from '@/lib/imageModels';
+import { 
   getModelById,
   IMAGE_MODELS 
 } from '@/lib/imageModels';

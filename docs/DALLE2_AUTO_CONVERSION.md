@@ -103,7 +103,7 @@ if (modelConfig.id === 'dall-e-2' || modelConfig.defaultParams.size === '512x512
 - ✅ Определение квадратных и вертикальных изображений
 
 **Результаты:**
-```
+```text
 Test Suites: 9 passed, 9 total
 Tests:       150 passed, 150 total
 ```
@@ -160,7 +160,7 @@ try {
 ## Примеры использования
 
 ### До: DALL-E 2 возвращал 512x512
-```
+```text
 Пользователь выбирает DALL-E 2
 ↓
 Генерация 512x512 изображения
@@ -171,7 +171,7 @@ try {
 ```
 
 ### После: Автоматическая конвертация
-```
+```text
 Пользователь выбирает DALL-E 2
 ↓
 Генерация 512x512 изображения
@@ -188,7 +188,7 @@ try {
 ## Логирование
 
 ### Успешная конвертация
-```
+```text
 [INFO] Detected square image output, converting to 9:16
 [INFO] Converting image to 9:16 format {
   modelId: "dall-e-2",
@@ -205,7 +205,7 @@ try {
 ```
 
 ### Пропуск конвертации (уже 9:16)
-```
+```text
 [INFO] Converting image to 9:16 format {
   modelId: "dall-e-3",
   originalSize: "1024x1792"
@@ -214,7 +214,7 @@ try {
 ```
 
 ### Ошибка конвертации
-```
+```text
 [ERROR] Error converting image to 9:16 {
   modelId: "dall-e-2",
   error: "Sharp processing failed"

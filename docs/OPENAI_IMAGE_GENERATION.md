@@ -59,7 +59,7 @@ OPENAI_API_KEY=sk-...
 
 Если `OPENAI_API_KEY` не установлен, а пользователь выбирает OpenAI модель, система выдаст понятную ошибку:
 
-```
+```text
 OPENAI_API_KEY is not configured. Please add your OpenAI API key to environment variables to use DALL-E models. You can obtain an API key at https://platform.openai.com/api-keys
 ```
 
@@ -169,10 +169,13 @@ if (dallE3?.provider === 'openai') {
 Система автоматически обрабатывает квадратные изображения от DALL-E 2:
 
 1. **Детекция**: Определяет что изображение квадратное (512x512)
-2. **Конвертация**: Использует Sharp для изменения размера
-3. **Метод**: `fit: 'cover'` - обрезает изображение для заполнения 9:16
-4. **Позиционирование**: `position: 'center'` - сохраняет центральный контент
-5. **Результат**: 1008x1792 (9:16 aspect ratio)
+2. **Проверка**: Изображения уже в 9:16 формате (±5%) пропускаются
+3. **Конвертация**: Использует Sharp для изменения размера в PNG
+4. **Метод**: `fit: 'cover'` - обрезает изображение для заполнения 9:16
+5. **Позиционирование**: `position: 'center'` - сохраняет центральный контент
+6. **Результат**: 1008x1792 (9:16 aspect ratio)
+7. **Обработка ошибок**: При ошибке возвращается оригинальное изображение
+8. **Content-Type**: Автоматически устанавливается `image/png` после конвертации
 
 ### Технические детали
 
@@ -200,7 +203,7 @@ const convertTo9x16 = async (inputBuffer: Buffer, modelId: string) => {
 ### Логирование конвертации
 
 Все операции конвертации логируются:
-```
+```text
 [INFO] Detected square image output, converting to 9:16
 [INFO] Converting image to 9:16 format {
   originalSize: "512x512",

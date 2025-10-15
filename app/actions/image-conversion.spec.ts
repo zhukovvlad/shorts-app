@@ -4,6 +4,7 @@
 
 import { describe, it, expect, jest } from '@jest/globals';
 import sharp from 'sharp';
+import { convertTo9x16 } from '@/lib/imageConversion';
 
 // Mock логгера
 jest.mock('@/lib/logger', () => ({
@@ -15,9 +16,10 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 describe('Image Conversion to 9:16', () => {
+  const TEST_MODEL_ID = 'dall-e-2';
+
   describe('Square to 9:16 conversion', () => {
-    it('should convert 512x512 image to 9:16 aspect ratio', async () => {
-      // Создаем тестовое квадратное изображение 512x512
+    it('should convert 512x512 image to 9:16 aspect ratio with correct dimensions', async () => {
       const testBuffer = await sharp({
         create: {
           width: 512,
@@ -29,30 +31,46 @@ describe('Image Conversion to 9:16', () => {
       .png()
       .toBuffer();
 
-      // Конвертируем в 9:16
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+
+      expect(result.converted).toBe(true);
+      
+      const metadata = await sharp(result.buffer).metadata();
       const targetHeight = 1792;
       const targetWidth = Math.round(targetHeight * (9 / 16));
-
-      const convertedBuffer = await sharp(testBuffer)
-        .resize(targetWidth, targetHeight, {
-          fit: 'cover',
-          position: 'center',
-        })
-        .png()
-        .toBuffer();
-
-      // Проверяем размеры результата
-      const metadata = await sharp(convertedBuffer).metadata();
+      
       expect(metadata.width).toBe(targetWidth);
       expect(metadata.height).toBe(targetHeight);
+      expect(metadata.width).toBe(1008);
+      expect(metadata.height).toBe(1792);
       
-      // Проверяем aspect ratio
       const aspectRatio = metadata.width! / metadata.height!;
       expect(aspectRatio).toBeCloseTo(9 / 16, 2);
     });
 
-    it('should handle already 9:16 images without conversion', async () => {
-      // Создаем изображение уже в формате 9:16
+    it('should output PNG format', async () => {
+      const testBuffer = await sharp({
+        create: {
+          width: 512,
+          height: 512,
+          channels: 3,
+          background: { r: 100, g: 100, b: 100 }
+        }
+      })
+      .jpeg()
+      .toBuffer();
+
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+
+      expect(result.converted).toBe(true);
+      
+      const metadata = await sharp(result.buffer).metadata();
+      expect(metadata.format).toBe('png');
+    });
+  });
+
+  describe('Near-9:16 skip path', () => {
+    it('should skip conversion for images already close to 9:16 (within 5% tolerance)', async () => {
       const width = 1008;
       const height = 1792;
       const testBuffer = await sharp({
@@ -66,100 +84,121 @@ describe('Image Conversion to 9:16', () => {
       .png()
       .toBuffer();
 
-      const metadata = await sharp(testBuffer).metadata();
-      const aspectRatio = metadata.width! / metadata.height!;
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+
+      expect(result.converted).toBe(false);
+
+      const originalMetadata = await sharp(testBuffer).metadata();
+      const convertedMetadata = await sharp(result.buffer).metadata();
       
-      // Проверяем что уже близко к 9:16
-      expect(aspectRatio).toBeCloseTo(9 / 16, 1);
+      expect(convertedMetadata.width).toBe(originalMetadata.width);
+      expect(convertedMetadata.height).toBe(originalMetadata.height);
     });
 
-    it('should maintain image quality during conversion', async () => {
-      // Создаем тестовое изображение с паттерном
+    it('should skip conversion for slightly off 9:16 images within tolerance', async () => {
+      const width = 1000;
+      const height = 1780;
       const testBuffer = await sharp({
         create: {
-          width: 512,
-          height: 512,
+          width,
+          height,
           channels: 4,
-          background: { r: 128, g: 128, b: 128, alpha: 1 }
+          background: { r: 0, g: 0, b: 255, alpha: 1 }
         }
       })
       .png()
       .toBuffer();
 
-      const targetHeight = 1792;
-      const targetWidth = Math.round(targetHeight * (9 / 16));
+      const originalRatio = width / height;
+      const targetRatio = 9 / 16;
+      const difference = Math.abs(originalRatio - targetRatio);
 
-      const convertedBuffer = await sharp(testBuffer)
-        .resize(targetWidth, targetHeight, {
-          fit: 'cover',
-          position: 'center',
-        })
-        .png()
-        .toBuffer();
+      expect(difference).toBeLessThan(0.05);
 
-      // Проверяем что конвертированное изображение валидно
-      const metadata = await sharp(convertedBuffer).metadata();
-      expect(metadata.format).toBe('png');
-      expect(metadata.channels).toBeGreaterThanOrEqual(3);
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+
+      expect(result.converted).toBe(false);
+
+      const convertedMetadata = await sharp(result.buffer).metadata();
+      expect(convertedMetadata.width).toBe(width);
+      expect(convertedMetadata.height).toBe(height);
+    });
+  });
+
+  describe('Error fallback', () => {
+    it('should return original buffer on conversion error', async () => {
+      const invalidBuffer = Buffer.alloc(0);
+
+      const result = await convertTo9x16(invalidBuffer, TEST_MODEL_ID);
+
+      expect(result.converted).toBe(false);
+      expect(result.buffer).toBe(invalidBuffer);
+      expect(result.buffer.length).toBe(0);
     });
 
-    it('should handle various input sizes', async () => {
-      const inputSizes = [
-        { width: 256, height: 256 },
-        { width: 512, height: 512 },
-        { width: 1024, height: 1024 },
-      ];
+    it('should return original buffer if sharp throws error', async () => {
+      const corruptedBuffer = Buffer.from('not an image data');
 
-      const targetHeight = 1792;
-      const targetWidth = Math.round(targetHeight * (9 / 16));
+      const result = await convertTo9x16(corruptedBuffer, TEST_MODEL_ID);
 
-      for (const size of inputSizes) {
+      expect(result.converted).toBe(false);
+      expect(result.buffer).toBe(corruptedBuffer);
+    });
+  });
+
+  describe('Various input sizes', () => {
+    it('should handle various square input sizes', async () => {
+      const sizes = [256, 512, 1024];
+
+      for (const size of sizes) {
         const testBuffer = await sharp({
           create: {
-            width: size.width,
-            height: size.height,
+            width: size,
+            height: size,
             channels: 4,
-            background: { r: 100, g: 150, b: 200, alpha: 1 }
+            background: { r: 128, g: 128, b: 128, alpha: 1 }
           }
         })
         .png()
         .toBuffer();
 
-        const convertedBuffer = await sharp(testBuffer)
-          .resize(targetWidth, targetHeight, {
-            fit: 'cover',
-            position: 'center',
-          })
-          .png()
-          .toBuffer();
+        const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
+        
+        expect(result.converted).toBe(true);
+        
+        const metadata = await sharp(result.buffer).metadata();
 
-        const metadata = await sharp(convertedBuffer).metadata();
-        expect(metadata.width).toBe(targetWidth);
-        expect(metadata.height).toBe(targetHeight);
+        expect(metadata.width).toBe(1008);
+        expect(metadata.height).toBe(1792);
+        expect(metadata.format).toBe('png');
       }
     });
   });
 
-  describe('Aspect ratio calculations', () => {
-    it('should correctly calculate 9:16 aspect ratio', () => {
-      const targetRatio = 9 / 16;
-      expect(targetRatio).toBeCloseTo(0.5625, 4);
-    });
+  describe('Image quality', () => {
+    it('should maintain image quality during conversion', async () => {
+      const testBuffer = await sharp({
+        create: {
+          width: 512,
+          height: 512,
+          channels: 4,
+          background: { r: 200, g: 150, b: 100, alpha: 1 }
+        }
+      })
+      .png()
+      .toBuffer();
 
-    it('should correctly identify square images', () => {
-      const squareRatio = 512 / 512;
-      const targetRatio = 9 / 16;
-      
-      // Квадратное изображение значительно отличается от 9:16
-      expect(Math.abs(squareRatio - targetRatio)).toBeGreaterThan(0.05);
-    });
+      const result = await convertTo9x16(testBuffer, TEST_MODEL_ID);
 
-    it('should correctly identify 9:16 images', () => {
-      const verticalRatio = 1008 / 1792;
-      const targetRatio = 9 / 16;
+      expect(result.converted).toBe(true);
+
+      const metadata = await sharp(result.buffer).metadata();
+      expect(metadata.width).toBe(1008);
+      expect(metadata.height).toBe(1792);
+      expect(metadata.channels).toBeGreaterThanOrEqual(3);
       
-      // 9:16 изображение должно быть близко к целевому
-      expect(Math.abs(verticalRatio - targetRatio)).toBeLessThan(0.05);
+      expect(result.buffer.length).toBeGreaterThan(0);
+      expect(result.buffer.length).toBeGreaterThan(testBuffer.length * 0.5);
     });
   });
 });
