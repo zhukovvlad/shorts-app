@@ -2,7 +2,7 @@ import { VideoActions } from "@/app/components/videoActions";
 import { prisma } from "@/app/lib/db";
 import { findPrompt } from "@/app/lib/findPrompt";
 import { AnimatedShinyText } from "@/components/ui/animated-shiny-text";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
 import { ArrowRightIcon, Clock3, Film, Calendar } from "lucide-react";
@@ -67,11 +67,11 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
 
     return (
         <div className="min-h-screen w-full relative overflow-x-hidden">
-            <div className="mx-auto max-w-7xl px-4 pt-3 pb-6">
+            <div className="mx-auto max-w-7xl px-3 sm:px-4 pt-2 sm:pt-3 pb-4 sm:pb-6">
                 <div className="grid gap-y-3 gap-x-6 lg:grid-cols-[460px_1fr] lg:gap-y-4 lg:gap-x-8">
-                    {/* Top bar: full-width, actions aligned to video column, back at container right */}
-                    <div className="mb-0 lg:mb-0 lg:col-span-2 flex items-center justify-between gap-3">
-                        {/* Left: actions, constrained to video column width */}
+                    {/* Top bar: Actions row */}
+                    <div className="mb-2 sm:mb-0 lg:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                        {/* Left: actions, constrained to video column width on desktop */}
                         <div className="min-w-0 lg:w-[460px]">
                             <VideoActions
                                 videoId={videoId}
@@ -81,18 +81,8 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                                 showBackButton={false}
                             />
                         </div>
-                        {/* Right: back aligned to container right */}
-                        <div className="hidden sm:flex justify-end pr-1">
-                            <VideoActions
-                                videoId={videoId}
-                                videoUrl={videoUrl}
-                                isOwner={isOwner}
-                                layout="row"
-                                onlyBackButton
-                            />
-                        </div>
-                        {/* Mobile back under actions */}
-                        <div className="sm:hidden mt-2">
+                        {/* Right: back button */}
+                        <div className="flex justify-start sm:justify-end">
                             <VideoActions
                                 videoId={videoId}
                                 videoUrl={videoUrl}
@@ -102,9 +92,10 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                             />
                         </div>
                     </div>
-                    {/* Left: Video (sticky) */}
+
+                    {/* Left: Video (sticky on desktop) */}
                     <div className="w-full lg:sticky lg:top-16 self-start">
-                        <div className="aspect-[9/16] bg-black rounded-2xl overflow-hidden mx-auto max-w-[460px] shadow-lg shadow-black/40 border border-white/10">
+                        <div className="aspect-[9/16] bg-black rounded-xl sm:rounded-2xl overflow-hidden mx-auto max-w-[460px] shadow-lg shadow-black/40 border border-white/10">
                             <video
                                 key={videoId}
                                 className="w-full h-full object-cover"
@@ -118,49 +109,48 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                     </div>
 
                     {/* Right: Details */}
-                    <div className="flex-1 flex flex-col gap-6 lg:mt-2">
+                    <div className="flex-1 flex flex-col gap-4 sm:gap-6 lg:mt-2">
                         {/* Header row: prompt + meta */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
+                        <div className="space-y-2 sm:space-y-3">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                                 <div
                                     className={cn(
                                         "group rounded-full border border-black/5 bg-neutral-100 text-base text-white transition-all ease-in hover:cursor-default dark:border-white/5 dark:bg-neutral-800",
                                     )}
                                 >
-                                    <AnimatedShinyText className="inline-flex items-center justify-center px-3.5 py-1 text-sm">
+                                    <AnimatedShinyText className="inline-flex items-center justify-center px-2.5 sm:px-3.5 py-0.5 sm:py-1 text-xs sm:text-sm">
                                         <span>✨ Prompt</span>
-                                        <ArrowRightIcon className="ml-1 size-3" />
+                                        <ArrowRightIcon className="ml-1 size-2.5 sm:size-3" />
                                     </AnimatedShinyText>
                                 </div>
                                 {video.duration ? (
-                                    <Badge variant="secondary" className="gap-1">
-                                        <Clock3 className="h-3.5 w-3.5" /> {Math.round((video.duration || 0) / 30)}s
+                                    <Badge variant="secondary" className="gap-1 text-xs sm:text-sm px-2 sm:px-2.5 py-0.5 h-6 sm:h-auto">
+                                        <Clock3 className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {Math.round((video.duration || 0) / 30)}s
                                     </Badge>
                                 ) : null}
-                                <Badge variant="secondary" className="gap-1">
-                                    <Film className="h-3.5 w-3.5" /> {video.imageLinks?.length || 0} images
+                                <Badge variant="secondary" className="gap-1 text-xs sm:text-sm px-2 sm:px-2.5 py-0.5 h-6 sm:h-auto">
+                                    <Film className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {video.imageLinks?.length || 0}
                                 </Badge>
                                 <Badge variant="secondary" className="gap-1 hidden sm:flex">
                                     <Calendar className="h-3.5 w-3.5" /> {new Date(video.createdAt).toLocaleDateString()}
                                 </Badge>
                             </div>
                             {prompt && (
-                            <Input
-                                className="rounded h-9 w-full max-w-3xl text-black"
+                            <Textarea
+                                className="rounded w-full max-w-3xl text-black text-sm resize-none min-h-[60px]"
                                 style={{ background: "#eee" }}
                                 defaultValue={prompt}
                                 disabled
+                                rows={3}
                             />
                             )}
                         </div>
-
-                        {/* Actions are now at the top bar */}
 
                         {/* Transcript */}
                         {transcript ? (
                             <Transcript text={transcript} />
                         ) : (
-                            <div className="text-sm text-white/60">Transcript is not available.</div>
+                            <div className="text-xs sm:text-sm text-white/60">Transcript is not available.</div>
                         )}
 
                         {/* Images Thumbnails */}
