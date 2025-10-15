@@ -79,15 +79,13 @@ export const VideoActions = ({ videoId, videoUrl, isOwner, layout = 'column', sh
                 isOwner && (
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <div className={equalCell}>
                             <Button
                                 variant="outline"
-                                className={`flex items-center gap-2 text-red-600 hover:bg-red-50 border-red-200 rounded-full dark:hover:bg-red-950 dark:border-red-800 justify-center sm:justify-start ${buttonWidth} cursor-pointer`}
+                                className={`${equalCell} flex items-center gap-2 text-red-600 hover:bg-red-50 border-red-200 rounded-full dark:hover:bg-red-950 dark:border-red-800 justify-center sm:justify-start ${buttonWidth} cursor-pointer`}
                             >
                                 <Trash2 className="h-4 w-4" />
                                 Delete
                             </Button>
-                            </div>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
@@ -113,12 +111,14 @@ export const VideoActions = ({ videoId, videoUrl, isOwner, layout = 'column', sh
             }
 
             {showBackButton && (
-                <Button asChild variant="ghost" className={`flex items-center gap-2 hover:bg-gray-800 rounded-full justify-center sm:justify-start ${buttonWidth} cursor-pointer`}>
-                    <Link href="/dashboard">
-                        <ArrowLeft className="h-4 w-4" />
-                        Back to Dashboard
-                    </Link>
-                </Button>
+                <div className={equalCell}>
+                    <Button asChild variant="ghost" className={`flex items-center gap-2 hover:bg-gray-800 rounded-full justify-center sm:justify-start ${buttonWidth} cursor-pointer`}>
+                        <Link href="/dashboard">
+                            <ArrowLeft className="h-4 w-4" />
+                            Back to Dashboard
+                        </Link>
+                    </Button>
+                </div>
             )}
 
         </div>

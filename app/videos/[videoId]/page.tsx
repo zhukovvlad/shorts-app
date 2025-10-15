@@ -10,8 +10,8 @@ import { ImageGallery } from "@/app/components/ImageGallery";
 import { Transcript } from "@/app/components/Transcript";
 import { Badge } from "@/components/ui/badge";
 
-const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
-    const { videoId } = await params;
+const page = async ({ params }: { params: { videoId: string } }) => {
+    const { videoId } = params;
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -21,12 +21,17 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
     const userId = session.user.id;
     const prompt = await findPrompt(videoId)
 
-    const video = await prisma.video.findUnique({
-        where: { videoId: videoId }
-    })
-
-    if (!video) {
-        // Soft empty state when video not found or DB down
+    // Fetch video with owner constraint to prevent leaking other users' videos
+    let video;
+    try {
+        video = await prisma.video.findUnique({
+            where: { 
+                videoId: videoId,
+                userId: userId // Only return if current user is the owner
+            }
+        })
+    } catch (error) {
+        // Fail-soft on DB errors
         return (
             <div className="min-h-screen w-full relative overflow-x-hidden">
                 <div className="mx-auto max-w-7xl px-4 pt-3 pb-6">
@@ -36,7 +41,18 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
         )
     }
 
-    const isOwner = userId === video.userId;
+    if (!video) {
+        // Not found or not owned by current user
+        return (
+            <div className="min-h-screen w-full relative overflow-x-hidden">
+                <div className="mx-auto max-w-7xl px-4 pt-3 pb-6">
+                    <p className="text-sm text-white/80">Video is unavailable right now. Please try again later.</p>
+                </div>
+            </div>
+        )
+    }
+
+    const isOwner = true; // Always true now since query includes userId constraint
     const videoUrl = video?.videoUrl;
     const transcript = video?.content;
 
