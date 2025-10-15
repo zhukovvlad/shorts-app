@@ -417,7 +417,7 @@ const model: ImageModel = {
 
 ## Итог
 
-✅ **Все 29 nitpicks исправлены:**
+✅ **Все 31 nitpick исправлен:**
 
 **Код качество (lib/imageModels.ts):**
 - ✅ as const для всех model entries (consistency литеральных типов)
@@ -437,6 +437,7 @@ const model: ImageModel = {
 - ✅ MD034: Bare URLs обернуты в angle brackets (<https://...>)
 - ✅ MD007: Unordered list indentation исправлена
 - ✅ LanguageTool: Russian punctuation исправлена (запятые добавлены)
+- ✅ LanguageTool: Russian grammar - параллельная структура глаголов
 
 **Markdown/Документация (OPENAI_IMAGE_GENERATION.md):**
 - ✅ URL в error message обернут в angle brackets
@@ -470,6 +471,9 @@ const model: ImageModel = {
 
 **16 октября 2025, 04:00:**
 - Nitpicks #15-29: Финальные улучшения (as const, constants, validation, tests, markdown)
+
+**16 октября 2025, 04:15:**
+- Nitpicks #30-31: Russian grammar corrections (LanguageTool)
 
 ---
 

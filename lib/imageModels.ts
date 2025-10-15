@@ -53,7 +53,7 @@ const FALLBACK_DEFAULT_MODEL: ReplicateImageModel = {
   id: 'ideogram-v3-turbo',
   name: 'Ideogram V3 Turbo',
   description: 'Быстрая генерация реалистичных изображений',
-  provider: 'replicate',
+  provider: 'replicate' as const,
   replicateModel: 'ideogram-ai/ideogram-v3-turbo',
   defaultParams: {
     resolution: 'None',
@@ -61,8 +61,8 @@ const FALLBACK_DEFAULT_MODEL: ReplicateImageModel = {
     aspect_ratio: '9:16',
     magic_prompt_option: 'On',
   },
-  speed: 'fast',
-  quality: 'high',
+  speed: 'fast' as const,
+  quality: 'high' as const,
 };
 
 export const IMAGE_MODELS: readonly ImageModel[] = [
