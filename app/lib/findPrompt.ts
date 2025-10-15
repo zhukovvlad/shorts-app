@@ -25,7 +25,8 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 		return data?.prompt || null;
 	} catch (error) {
 		logger.error('findPrompt: database error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
-		throw new Error('findPrompt: internal error');
+			// Fail-soft: return null to avoid breaking the page when DB is unreachable
+			return null;
 	}
 }
 
@@ -68,6 +69,7 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 		return await findPromptInternal(videoId, requestingUserId);
 	} catch (error) {
 		logger.error('findPrompt: error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
-		throw new Error('findPrompt: internal error');
+			// Fail-soft: return null to allow the caller to handle absence of prompt
+			return null;
 	}
 }
