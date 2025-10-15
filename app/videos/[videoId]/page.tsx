@@ -9,9 +9,10 @@ import { ArrowRightIcon, Clock3, Film, Calendar } from "lucide-react";
 import { ImageGallery } from "@/app/components/ImageGallery";
 import { Transcript } from "@/app/components/Transcript";
 import { Badge } from "@/components/ui/badge";
+import { logger } from "@/lib/logger";
 
-const page = async ({ params }: { params: { videoId: string } }) => {
-    const { videoId } = params;
+const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
+    const { videoId } = await params;
     const session = await auth();
 
     if (!session?.user?.id) {
@@ -31,6 +32,12 @@ const page = async ({ params }: { params: { videoId: string } }) => {
             }
         })
     } catch (error) {
+        logger.error('Video page: database error occurred', {
+            error: error instanceof Error ? error.message : 'unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            videoId,
+            userId
+        });
         // Fail-soft on DB errors
         return (
             <div className="min-h-screen w-full relative overflow-x-hidden">
