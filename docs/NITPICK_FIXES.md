@@ -84,7 +84,7 @@ export type ImageModel = ReplicateImageModel | OpenAIImageModel;
 
 Создан новый тестовый файл `lib/imageModels-types.spec.ts` с 12 тестами:
 
-```
+```text
 ✓ Replicate models should have replicateModel field
 ✓ OpenAI models should have openaiModel field
 ✓ should not allow models with both replicateModel and openaiModel
@@ -109,12 +109,12 @@ export type ImageModel = ReplicateImageModel | OpenAIImageModel;
 ### Решение
 
 **До:**
-```markdown
+```text
 **Решение**: Используйте стандартный DALL-E 3 или переключитесь на FLUX моделиесли скорость критична
 ```
 
 **После:**
-```markdown
+```text
 **Решение**: Используйте стандартный DALL-E 3 или переключитесь на FLUX модели если скорость критична
 ```
 
@@ -283,7 +283,7 @@ import {
 **Проблема:** Документация не описывает skip-when-vertical и error fallback
 
 **Исправлено в OPENAI_INTEGRATION_SUMMARY.md:**
-```markdown
+```text
 Квадратные изображения от DALL-E 2 автоматически обрабатываются:
 - ✅ Конвертация применяется только к квадратным изображениям
 - ✅ Изображения уже в 9:16 формате пропускаются (±5%)
@@ -292,7 +292,7 @@ import {
 ```
 
 **Исправлено в OPENAI_IMAGE_GENERATION.md:**
-```markdown
+```text
 Система автоматически обрабатывает изображения:
 1. Детекция квадратного формата (512x512)
 2. Проверка: уже 9:16 (±5%) → пропуск
@@ -417,20 +417,60 @@ const model: ImageModel = {
 
 ## Итог
 
-✅ **Все 13 nitpicks исправлены:**
-- ✅ Discriminated union для type safety (основное замечание)
-- ✅ Удален @types/sharp (конфликт с встроенными типами)
-- ✅ Добавлен engines field (Node >=18.18 <21)
-- ✅ Record<string, unknown> вместо any
-- ✅ readonly ImageModel[] для immutability  
-- ✅ import type для type-only imports
-- ✅ Markdown language identifiers (6 блоков в 4 файлах)
-- ✅ Уточнено поведение конвертации (skip + fallback)
-- ✅ Описан PNG output и Content-Type handling
+✅ **Все 29 nitpicks исправлены:**
 
-✅ **163 теста проходят успешно**  
+**Код качество (lib/imageModels.ts):**
+- ✅ as const для всех model entries (consistency литеральных типов)
+
+**Код качество (lib/imageConversion.ts):**
+- ✅ Magic numbers извлечены в константы (TARGET_ASPECT_RATIO = 9/16, TARGET_HEIGHT = 1792, ASPECT_RATIO_TOLERANCE = 0.05)
+- ✅ Input validation добавлена (empty/null buffer check)
+
+**Тесты (app/actions/image-conversion.spec.ts):**
+- ✅ Duplicate dimension assertions удалены
+- ✅ Referential equality check на skip path (expect(result.buffer).toBe(testBuffer))
+- ✅ Boundary test для 5% tolerance edge добавлен
+
+**Markdown/Документация (CODE_REVIEW_FIX.md):**
+- ✅ MD036: Emphasis-styled line заменена на heading (####)
+- ✅ MD040: Language identifiers добавлены (text для архитектурных диаграмм и file structure)
+- ✅ MD034: Bare URLs обернуты в angle brackets (<https://...>)
+- ✅ MD007: Unordered list indentation исправлена
+- ✅ LanguageTool: Russian punctuation исправлена (запятые добавлены)
+
+**Markdown/Документация (OPENAI_IMAGE_GENERATION.md):**
+- ✅ URL в error message обернут в angle brackets
+
+**Ранее исправленные (1-14):**
+- ✅ Discriminated union для type safety
+- ✅ Удален @types/sharp
+- ✅ Добавлен engines field
+- ✅ Record<string, unknown> вместо any
+- ✅ readonly ImageModel[]
+- ✅ import type для type-only imports
+- ✅ Markdown language identifiers (9 блоков)
+- ✅ Документация уточнена
+- ✅ Хрупкая проверка размера буфера заменена
+
+✅ **164 теста проходят успешно** (+1 boundary test)  
 ✅ **TypeScript компиляция без ошибок**  
 ✅ **Документация полная и актуальная**  
 ✅ **Полная обратная совместимость**  
+
+---
+
+## История исправлений
+
+**15 октября 2025:**
+- Замечания #1-7 (основные code review)
+- Nitpicks #1-13 (package.json, types, markdown, documentation)
+
+**16 октября 2025, 03:15:**
+- Nitpick #14: Стабильные проверки в тестах (format вместо buffer size)
+
+**16 октября 2025, 04:00:**
+- Nitpicks #15-29: Финальные улучшения (as const, constants, validation, tests, markdown)
+
+---
 
 Код готов к production! 🚀

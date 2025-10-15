@@ -92,14 +92,14 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       output_format: 'png',
       output_quality: 90,
     },
-    speed: 'fast',
-    quality: 'standard',
+    speed: 'fast' as const,
+    quality: 'standard' as const,
   },
   {
     id: 'flux-pro',
     name: 'FLUX Pro',
     description: 'Профессиональное качество с улучшенной детализацией',
-    provider: 'replicate',
+    provider: 'replicate' as const,
     replicateModel: 'black-forest-labs/flux-pro',
     defaultParams: {
       aspect_ratio: '9:16',
@@ -107,14 +107,14 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       safety_tolerance: 2,
     },
     isPro: true,
-    speed: 'medium',
-    quality: 'ultra',
+    speed: 'medium' as const,
+    quality: 'ultra' as const,
   },
   {
     id: 'flux-dev',
     name: 'FLUX Dev',
     description: 'Баланс качества и скорости',
-    provider: 'replicate',
+    provider: 'replicate' as const,
     replicateModel: 'black-forest-labs/flux-dev',
     defaultParams: {
       aspect_ratio: '9:16',
@@ -122,14 +122,14 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       output_quality: 90,
       num_inference_steps: 28,
     },
-    speed: 'medium',
-    quality: 'high',
+    speed: 'medium' as const,
+    quality: 'high' as const,
   },
   {
     id: 'sdxl',
     name: 'Stable Diffusion XL',
     description: 'Проверенная модель с хорошим качеством',
-    provider: 'replicate',
+    provider: 'replicate' as const,
     replicateModel: 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
     defaultParams: {
       width: 768,
@@ -138,15 +138,15 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       guidance_scale: 7.5,
       scheduler: 'DPMSolverMultistep',
     },
-    speed: 'medium',
-    quality: 'high',
+    speed: 'medium' as const,
+    quality: 'high' as const,
   },
   // OpenAI Models
   {
     id: 'dall-e-3',
     name: 'DALL-E 3',
     description: 'Передовая модель OpenAI с отличным пониманием текста',
-    provider: 'openai',
+    provider: 'openai' as const,
     openaiModel: 'dall-e-3',
     defaultParams: {
       size: '1024x1792', // 9:16 aspect ratio
@@ -154,14 +154,14 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       style: 'vivid',
     },
     isPro: true,
-    speed: 'medium',
-    quality: 'ultra',
+    speed: 'medium' as const,
+    quality: 'ultra' as const,
   },
   {
     id: 'dall-e-3-hd',
     name: 'DALL-E 3 HD',
     description: 'DALL-E 3 с максимальным качеством детализации',
-    provider: 'openai',
+    provider: 'openai' as const,
     openaiModel: 'dall-e-3',
     defaultParams: {
       size: '1024x1792', // 9:16 aspect ratio
@@ -169,20 +169,20 @@ export const IMAGE_MODELS: readonly ImageModel[] = [
       style: 'vivid',
     },
     isPro: true,
-    speed: 'slow',
-    quality: 'ultra',
+    speed: 'slow' as const,
+    quality: 'ultra' as const,
   },
   {
     id: 'dall-e-2',
     name: 'DALL-E 2',
     description: 'Более быстрая и экономичная модель OpenAI (автоматическая конвертация в 9:16)',
-    provider: 'openai',
+    provider: 'openai' as const,
     openaiModel: 'dall-e-2',
     defaultParams: {
       size: '512x512', // Генерирует 512x512, автоматически конвертируется в 9:16
     },
-    speed: 'fast',
-    quality: 'standard',
+    speed: 'fast' as const,
+    quality: 'standard' as const,
   },
 ];
 
