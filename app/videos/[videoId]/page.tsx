@@ -137,8 +137,7 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                             </div>
                             {prompt && (
                             <Textarea
-                                className="rounded w-full max-w-3xl text-black text-sm resize-none min-h-[60px]"
-                                style={{ background: "#eee" }}
+                                className="rounded w-full max-w-3xl bg-muted text-foreground text-sm resize-none min-h-[60px]"
                                 defaultValue={prompt}
                                 disabled
                                 rows={3}
