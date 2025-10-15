@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useId, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
 
@@ -20,6 +20,17 @@ export function Transcript({
   collapsedMaxHeight = 320,
 }: TranscriptProps) {
   const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [needsToggle, setNeedsToggle] = useState(true);
+
+  useEffect(() => {
+    // Measure actual content height to determine if toggle is needed
+    if (contentRef.current) {
+      const actualHeight = contentRef.current.scrollHeight;
+      setNeedsToggle(actualHeight > collapsedMaxHeight);
+    }
+  }, [text, collapsedMaxHeight]);
 
   return (
     <div className={cn("w-full", className)}>
@@ -46,6 +57,8 @@ export function Transcript({
       </div>
 
       <div
+        id={contentId}
+        ref={contentRef}
         className={cn(
           "relative mt-4 rounded-md bg-neutral-900/60 backdrop-blur-sm border border-white/10 w-full max-w-3xl transition-all",
           expanded ? "overflow-visible" : "overflow-hidden",
@@ -60,23 +73,25 @@ export function Transcript({
         </div>
 
         {/* bottom gradient fade when collapsed */}
-        {!expanded && (
+        {!expanded && needsToggle && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-neutral-900/80 via-neutral-900/40 to-transparent" />
         )}
       </div>
 
       {/* toggle */}
+      {needsToggle && (
       <div className="mt-2">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="text-xs text-white/80 hover:text-white transition-colors underline underline-offset-4 cursor-pointer"
           aria-expanded={expanded}
-          aria-controls="transcript-content"
+          aria-controls={contentId}
         >
           {expanded ? "Show less" : "Show more"}
         </button>
       </div>
+      )}
     </div>
   );
 }

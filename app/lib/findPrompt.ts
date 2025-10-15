@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 /**
  * Внутренняя функция для получения промпта по videoId и userId
  * Не использует аутентификацию - предназначена для использования в воркерах
+ * @returns Промпт видео или null при ошибках/отсутствии данных
  */
 export const findPromptInternal = async (videoId: string, userId: string): Promise<string | null> => {
 	if (!videoId?.trim() || !userId?.trim()) {
@@ -24,9 +25,15 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
 
 		return data?.prompt || null;
 	} catch (error) {
-		logger.error('findPrompt: database error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
-			// Fail-soft: return null to avoid breaking the page when DB is unreachable
-			return null;
+		// Log full error for observability
+		logger.error('findPrompt: database error occurred', { 
+			error: error instanceof Error ? error.message : 'unknown error',
+			stack: error instanceof Error ? error.stack : undefined,
+			videoId,
+			userId
+		});
+		// Fail-soft: return null to avoid breaking the page when DB is unreachable
+		return null;
 	}
 }
 
@@ -34,7 +41,7 @@ export const findPromptInternal = async (videoId: string, userId: string): Promi
  * Получает промпт для видео по его ID, только если пользователь является владельцем
  * @param videoId - Уникальный идентификатор видео
  * @param userId - ID пользователя (опциональный, для режима воркера)
- * @returns Промпт видео или null если видео не найдено или пользователь не является владельцем
+ * @returns Промпт видео или null если видео не найдено, пользователь не является владельцем, или произошла ошибка БД
  */
 export const findPrompt = async (videoId: string, userId?: string): Promise<string | null> => {
 	"use server"
@@ -68,8 +75,13 @@ export const findPrompt = async (videoId: string, userId?: string): Promise<stri
 
 		return await findPromptInternal(videoId, requestingUserId);
 	} catch (error) {
-		logger.error('findPrompt: error occurred', { error: error instanceof Error ? error.message : 'unknown error' });
-			// Fail-soft: return null to allow the caller to handle absence of prompt
-			return null;
+		// Log full error for observability and telemetry
+		logger.error('findPrompt: error occurred', { 
+			error: error instanceof Error ? error.message : 'unknown error',
+			stack: error instanceof Error ? error.stack : undefined,
+			videoId
+		});
+		// Fail-soft: return null to allow the caller to handle absence of prompt
+		return null;
 	}
 }

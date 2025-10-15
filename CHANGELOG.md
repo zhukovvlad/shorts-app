@@ -5,6 +5,46 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.8] - 2025-10-15
+
+### Добавлено
+- **UI: Улучшенный дизайн страницы видео**
+  - Новый компонент `Transcript` с expand/collapse функциональностью
+  - Sticky-позиционирование видео при скролле (desktop)
+  - Реорганизованная верхняя панель с action-кнопками над видео
+  - Метаданные видео (длительность, количество изображений, дата) в виде компактных Badge
+  - Grid-лейаут для выравнивания элементов страницы
+  - Файлы: `app/components/Transcript.tsx`, `app/videos/[videoId]/page.tsx`
+
+- **UI: Action Bar Improvements**
+  - Кнопки Download/Copy/Delete выровнены в один ряд равной ширины
+  - "Back to Dashboard" вынесена в правую часть контейнера
+  - Адаптивное поведение на мобильных устройствах
+  - Обновлённый компонент `VideoActions` с поддержкой row/column лейаутов
+  - Файлы: `app/components/videoActions.tsx`, `app/videos/[videoId]/page.tsx`
+
+### Улучшено
+- **Accessibility: Transcript Component**
+  - Добавлен уникальный `id` через React `useId()` для связи кнопки с контентом
+  - Корректный `aria-controls` и `aria-expanded` для screen readers
+  - Автоматическое скрытие кнопки "Show more" когда контент помещается целиком
+  - Измерение реальной высоты контента через `useRef` и `useEffect`
+  - Файлы: `app/components/Transcript.tsx`
+
+- **UX: Spacing and Layout**
+  - Уменьшены вертикальные отступы между элементами страницы
+  - Prompt input выровнен по ширине с остальными секциями (max-w-3xl)
+  - Оптимизированные top padding и sticky offset для более компактного view
+  - Файлы: `app/videos/[videoId]/page.tsx`
+
+### Исправлено
+- **Error Handling: Database Unavailability**
+  - `findPrompt` теперь возвращает `null` вместо throw при ошибках БД
+  - Страница видео показывает graceful empty states вместо 500 ошибки
+  - Prompt input и Transcript рендерятся условно при отсутствии данных
+  - Улучшенные fallback-сообщения для пользователей
+  - Файлы: `app/lib/findPrompt.ts`, `app/videos/[videoId]/page.tsx`
+
 ## [1.6.7] - 2025-10-15
 
 ### Добавлено
