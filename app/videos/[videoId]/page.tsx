@@ -8,6 +8,7 @@ import { TypingAnimation } from "@/components/ui/typing-animation";
 import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
 import { ArrowRightIcon } from "lucide-react";
+import { ImageGallery } from "@/app/components/ImageGallery";
 
 const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
     const { videoId } = await params;
@@ -115,6 +116,11 @@ const page = async ({ params }: { params: Promise<{ videoId: string }> }) => {
                                 </TypingAnimation>
                             </div>
                         </div>
+
+                        {/* Images Thumbnails */}
+                        {video.imageLinks && video.imageLinks.length > 0 && (
+                            <ImageGallery imageLinks={video.imageLinks} />
+                        )}
 
                         {/* Actions */}
                         <div className="sm:self-start">
