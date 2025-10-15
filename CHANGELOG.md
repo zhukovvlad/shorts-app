@@ -43,7 +43,30 @@
   - Страница видео показывает graceful empty states вместо 500 ошибки
   - Prompt input и Transcript рендерятся условно при отсутствии данных
   - Улучшенные fallback-сообщения для пользователей
+  - Добавлено логирование ошибок БД с full stack traces для observability
   - Файлы: `app/lib/findPrompt.ts`, `app/videos/[videoId]/page.tsx`
+
+- **Security: Video Access Control**
+  - Добавлена проверка владельца на уровне БД запроса
+  - `prisma.video.findUnique` теперь включает `userId` constraint
+  - Предотвращает утечку видео других пользователей
+  - Try/catch обёртка для fail-soft поведения при ошибках БД
+  - Файлы: `app/videos/[videoId]/page.tsx`
+
+- **Next.js 15 Compatibility: Async params**
+  - Исправлена типизация `params` в динамических маршрутах
+  - `params` теперь корректно типизирован как `Promise<{ videoId: string }>`
+  - Добавлен `await` перед деструктуризацией параметров
+  - Устранена ошибка "params should be awaited before using its properties"
+  - Соответствует новому API Next.js 15 для Partial Prerendering (PPR)
+  - Документация: [Next.js Sync Dynamic APIs](https://nextjs.org/docs/messages/sync-dynamic-apis)
+  - Файлы: `app/videos/[videoId]/page.tsx`
+
+- **Code Quality: Component Semantics**
+  - AlertDialogTrigger теперь содержит Button напрямую без лишних обёрток
+  - Улучшена семантика фокуса для accessibility
+  - Back button получает равную ширину в row layout для визуального баланса
+  - Файлы: `app/components/videoActions.tsx`
 
 ## [1.6.7] - 2025-10-15
 
