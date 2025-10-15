@@ -16,7 +16,7 @@ interface BaseImageModel {
   id: string;
   name: string;
   description: string;
-  defaultParams: Record<string, any>;
+  defaultParams: Record<string, unknown>;
   isPro?: boolean;
   speed: 'fast' | 'medium' | 'slow';
   quality: 'standard' | 'high' | 'ultra';
@@ -65,12 +65,12 @@ const FALLBACK_DEFAULT_MODEL: ReplicateImageModel = {
   quality: 'high',
 };
 
-export const IMAGE_MODELS: ImageModel[] = [
+export const IMAGE_MODELS: readonly ImageModel[] = [
   {
     id: 'ideogram-v3-turbo',
     name: 'Ideogram V3 Turbo',
     description: 'Быстрая генерация реалистичных изображений',
-    provider: 'replicate',
+    provider: 'replicate' as const,
     replicateModel: 'ideogram-ai/ideogram-v3-turbo',
     defaultParams: {
       resolution: 'None',
@@ -78,14 +78,14 @@ export const IMAGE_MODELS: ImageModel[] = [
       aspect_ratio: '9:16',
       magic_prompt_option: 'On',
     },
-    speed: 'fast',
-    quality: 'high',
+    speed: 'fast' as const,
+    quality: 'high' as const,
   },
   {
     id: 'flux-schnell',
     name: 'FLUX Schnell',
     description: 'Очень быстрая генерация качественных изображений',
-    provider: 'replicate',
+    provider: 'replicate' as const,
     replicateModel: 'black-forest-labs/flux-schnell',
     defaultParams: {
       aspect_ratio: '9:16',

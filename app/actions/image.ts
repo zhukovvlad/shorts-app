@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { getModelById, getDefaultModel } from "@/lib/imageModels";
 import { logger } from "@/lib/logger";
 import OpenAI from "openai";
-import sharp from "sharp";
+import { convertTo9x16 } from "@/lib/imageConversion";
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
@@ -93,69 +93,6 @@ const getFileExtensionFromContentType = (contentType: string): string => {
 };
 
 /**
- * Преобразует изображение в формат 9:16 используя Sharp
- * Для квадратных изображений (например, DALL-E 2) применяет cover crop
- * 
- * @param inputBuffer - Исходное изображение в виде буфера
- * @param modelId - ID модели для логирования
- * @returns Обработанное изображение в формате PNG
- */
-const convertTo9x16 = async (inputBuffer: Buffer, modelId: string): Promise<Buffer> => {
-  try {
-    const metadata = await sharp(inputBuffer).metadata();
-    const originalWidth = metadata.width || 512;
-    const originalHeight = metadata.height || 512;
-    const originalRatio = originalWidth / originalHeight;
-    const targetRatio = 9 / 16;
-
-    logger.info('Converting image to 9:16 format', {
-      modelId,
-      originalSize: `${originalWidth}x${originalHeight}`,
-      originalRatio: originalRatio.toFixed(2),
-      targetRatio: targetRatio.toFixed(2)
-    });
-
-    // Если уже близко к 9:16 (в пределах 5%), не обрабатываем
-    if (Math.abs(originalRatio - targetRatio) < 0.05) {
-      logger.info('Image already close to 9:16, skipping conversion');
-      return inputBuffer;
-    }
-
-    // Целевые размеры для 9:16
-    // Используем высоту как базу и вычисляем ширину
-    const targetHeight = 1792; // Стандартная высота для вертикальных видео
-    const targetWidth = Math.round(targetHeight * targetRatio);
-
-    // Используем cover для заполнения всего кадра с обрезкой
-    // Это обеспечивает что важный контент останется по центру
-    const processedBuffer = await sharp(inputBuffer)
-      .resize(targetWidth, targetHeight, {
-        fit: 'cover', // Обрезает изображение для заполнения целевых размеров
-        position: 'center', // Центрирует контент
-      })
-      .png() // Конвертируем в PNG для единообразия
-      .toBuffer();
-
-    logger.info('Image successfully converted to 9:16', {
-      modelId,
-      outputSize: `${targetWidth}x${targetHeight}`,
-      originalSize: inputBuffer.length,
-      processedSize: processedBuffer.length
-    });
-
-    return processedBuffer;
-  } catch (error) {
-    logger.error('Error converting image to 9:16', {
-      modelId,
-      error: error instanceof Error ? error.message : String(error)
-    });
-    // В случае ошибки возвращаем оригинал
-    logger.warn('Returning original image due to conversion error');
-    return inputBuffer;
-  }
-};
-
-/**
  * Генерация изображения через OpenAI DALL-E
  */
 const processImageWithOpenAI = async (prompt: string, modelId: string) => {
@@ -217,16 +154,25 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
     }
 
     const arrayBuffer = await imageResponse.arrayBuffer();
-    let buffer = Buffer.from(arrayBuffer);
+    let buffer: Buffer = Buffer.from(arrayBuffer);
+    let convertedToPng = false;
 
     // Автоматическая конвертация в 9:16 для квадратных изображений (DALL-E 2)
     if (modelConfig.id === 'dall-e-2' || modelConfig.defaultParams.size === '512x512') {
       logger.info('Detected square image output, converting to 9:16');
-      const convertedBuffer = await convertTo9x16(buffer, modelConfig.id);
-      buffer = Buffer.from(convertedBuffer);
+      const result = await convertTo9x16(buffer, modelConfig.id);
+      buffer = result.buffer;
+      convertedToPng = result.converted;
     }
 
-    const contentType = imageResponse.headers.get('content-type') || 'image/png';
+    let contentType = imageResponse.headers.get('content-type') || 'image/png';
+    
+    // Если изображение было сконвертировано в PNG, обновляем content-type
+    if (convertedToPng) {
+      contentType = 'image/png';
+      logger.info('Image was converted to PNG, updating content-type');
+    }
+    
     logger.info(`Image content-type: ${contentType}`);
 
     const extension = getFileExtensionFromContentType(contentType);
