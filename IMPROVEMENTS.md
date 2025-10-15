@@ -2,7 +2,35 @@
 
 Этот документ содержит список реализованных и планируемых улучшений для проекта.
 
-## 🎯 Последние обновления (v1.7.0 - Октябрь 2025)
+## 🎯 Последние обновления (v1.6.7 - Октябрь 2025)
+
+### Ключевые достижения:
+- ✅ **Image Gallery Component** - интерактивная галерея изображений на странице видео
+- ✅ **Keyboard Navigation** - полноценная навигация стрелками с видимыми кнопками
+- ✅ **Image Optimization** - оптимизированная загрузка thumbnails через Next.js
+- ✅ **Error Handling** - graceful fallback при ошибках загрузки S3 изображений
+- ✅ **Accessibility Improvements** - ARIA-compliant Dialog с screen reader support
+- ✅ **Config Cleanup** - устранены избыточные настройки и misleading комментарии
+
+### Улучшения UX:
+- Визуальное представление всех изображений из видео в виде сетки миниатюр
+- Полноэкранный просмотр изображений с красивыми анимациями
+- Интуитивная навигация стрелками (← →) - клавиатура + видимые кнопки
+- Hover-эффекты с индикацией номера сцены
+- Адаптивная сетка для разных размеров экранов (2-5 колонок)
+
+### Технические улучшения:
+- Next.js Image Optimization для thumbnails (WebP/AVIF)
+- Unoptimized mode для full-size изображений (оригинальное качество)
+- Обработка таймаутов и ошибок загрузки S3
+- Правильная конфигурация без избыточных defaults
+- Accessibility-compliant компоненты
+
+📚 **Подробнее:** См. раздел [Image Gallery & UX Improvements (v1.6.7)](#image-gallery--ux-improvements-v167)
+
+---
+
+## 🎯 Предыдущие обновления (v1.7.0 - Октябрь 2025)
 
 ### Ключевые достижения:
 - ✅ **NextAuth v5 Migration** - полная миграция на NextAuth v5 с улучшенной безопасностью
@@ -44,6 +72,156 @@
 📚 **Подробнее:** См. раздел [Code Review Improvements (v1.6.0)](#code-review-improvements-v160)
 
 ## ✅ Реализованные улучшения
+
+### Image Gallery & UX Improvements (v1.6.7)
+
+#### v1.6.7 (Октябрь 2025)
+
+##### 1. Компонент ImageGallery для визуализации изображений видео
+
+- **Создан новый клиентский компонент `ImageGallery`**
+  - Отображает все изображения (`imageLinks`), использованные при создании видео
+  - Адаптивная grid-сетка: 2 колонки (mobile) → 5 колонок (desktop)
+  - Красивые hover-эффекты с анимациями scale и тенями
+  - Индикатор "Scene N" появляется при наведении на миниатюру
+  - Файл: `app/components/ImageGallery.tsx`
+
+- **Интеграция в страницу видео**
+  - Секция с изображениями размещена между транскриптом и кнопками действий
+  - Использует тот же дизайн заголовка с анимированным градиентом
+  - Показывает количество изображений в заголовке: "🎨 Images (N)"
+  - Файл: `app/videos/[videoId]/page.tsx`
+
+##### 2. Модальный просмотр изображений
+
+- **Dialog компонент из shadcn/ui для полноэкранного просмотра**
+  - Размер: 95vw × 95vh (почти на весь экран)
+  - Полупрозрачный чёрный фон (`bg-black/95`) для фокуса на изображении
+  - `object-contain` для отображения полного изображения без обрезки
+  - Header с номером сцены: "Scene X of Y"
+  - Footer с подсказками навигации
+
+- **Accessibility (a11y)**
+  - `DialogTitle` с классом `sr-only` для screen readers
+  - ARIA-compliant компоненты от Radix UI
+  - Устранена console error о missing DialogTitle
+  - Keyboard navigation: ESC для закрытия, ← → для навигации
+
+##### 3. Клавиатурная навигация
+
+- **Полноценная реализация навигации**
+  - Видимые кнопки-стрелки (ChevronLeft/ChevronRight) по бокам изображения
+  - Кнопки появляются только когда есть куда переходить
+  - Полупрозрачный фон с backdrop-blur для лучшей видимости
+  - Hover эффекты для интерактивности
+
+- **Клавиатурное управление через useEffect**
+  ```typescript
+  const goToPrevious = () => {
+    if (selectedImage && selectedImage.index > 0) {
+      setSelectedImage({
+        url: imageLinks[selectedImage.index - 1],
+        index: selectedImage.index - 1
+      })
+    }
+  }
+
+  const goToNext = () => {
+    if (selectedImage && selectedImage.index < imageLinks.length - 1) {
+      setSelectedImage({
+        url: imageLinks[selectedImage.index + 1],
+        index: selectedImage.index + 1
+      })
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedImage) return
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault() // Prevent default browser behavior
+      
+      if (e.key === 'ArrowLeft') {
+        goToPrevious()
+      } else if (e.key === 'ArrowRight') {
+        goToNext()
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedImage, imageLinks])
+  ```
+
+- **Улучшения UX**
+  - Вынесены функции `goToPrevious()` и `goToNext()` для переиспользования
+  - Добавлен `e.preventDefault()` для предотвращения default browser behavior
+  - Кнопки условно рендерятся (не показываются на первом/последнем изображении)
+  - Проверка границ массива предотвращает ошибки
+  - Cleanup listener при размонтировании компонента
+  - Обновлённая подсказка: "Use ← → to navigate • Click outside or press ESC to close"
+
+##### 4. Оптимизация изображений
+
+- **Thumbnails: Next.js Image Optimization включена**
+  - Убран `unoptimized` prop с миниатюр в сетке
+  - Автоматическая конвертация в WebP/AVIF форматы
+  - Адаптивные размеры через `sizes` prop
+  - Lazy loading для экономии трафика
+  - Значительное снижение bandwidth на медленных соединениях
+
+- **Full-size images: Unoptimized mode для качества**
+  - Модальное окно использует `unoptimized` prop
+  - Показывает оригинальное изображение без потери качества
+  - `priority` loading для быстрого отображения
+  - Оправданный trade-off: качество vs скорость для просмотра в полном размере
+
+##### 5. Обработка ошибок загрузки
+
+- **Graceful fallback при ошибках**
+  ```typescript
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set())
+  
+  const handleImageError = (index: number) => {
+    setImageErrors(prev => new Set(prev).add(index))
+  }
+  ```
+
+- **Fallback UI**
+  - Thumbnails: серый блок с текстом "Failed to load"
+  - Modal: белый текст "Failed to load image" на чёрном фоне
+  - Предотвращает показ битых изображений
+  - Информирует пользователя о проблеме
+
+- **onError handlers на всех Image компонентах**
+  - Отслеживание ошибок загрузки из S3
+  - Защита от таймаутов при медленном соединении
+  - Сохранение индекса ошибочного изображения в Set
+
+##### 6. Очистка конфигурации
+
+- **Исправлен next.config.ts**
+  - Удалена избыточная строка `unoptimized: false` (это default)
+  - Исправлен misleading комментарий о "таймауте"
+  - Добавлен корректный комментарий о контроле на уровне компонентов
+  - Устранено несоответствие между global config и component props
+
+- **Alignment с code review замечаниями**
+  - Config не содержит redundant defaults
+  - Комментарии точно описывают поведение
+  - Понятна архитектура: thumbnails оптимизированы, full-size нет
+
+##### Результаты
+
+- ✅ **UX**: Визуальное представление всех изображений из видео
+- ✅ **Performance**: Оптимизированная загрузка thumbnails (WebP/AVIF)
+- ✅ **Accessibility**: ARIA-compliant Dialog с screen reader support
+- ✅ **Keyboard Navigation**: Полноценная навигация стрелками + видимые кнопки
+- ✅ **Error Handling**: Graceful fallback при ошибках S3
+- ✅ **Code Quality**: Clean config без избыточных настроек
+- ✅ **User Engagement**: Интерактивный просмотр с красивыми анимациями
+
+---
 
 ### NextAuth v5 & Code Quality (v1.7.0)
 

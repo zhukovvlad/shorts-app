@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { AnimatedGradientText } from "@/components/ui/animated-gradient-text"
+import { ChevronLeft, ChevronRight, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface ImageGalleryProps {
     imageLinks: string[]
@@ -17,6 +19,42 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
     const handleImageError = (index: number) => {
         setImageErrors(prev => new Set(prev).add(index))
     }
+
+    const goToPrevious = () => {
+        if (selectedImage && selectedImage.index > 0) {
+            setSelectedImage({
+                url: imageLinks[selectedImage.index - 1],
+                index: selectedImage.index - 1
+            })
+        }
+    }
+
+    const goToNext = () => {
+        if (selectedImage && selectedImage.index < imageLinks.length - 1) {
+            setSelectedImage({
+                url: imageLinks[selectedImage.index + 1],
+                index: selectedImage.index + 1
+            })
+        }
+    }
+
+    // Keyboard navigation for the modal
+    useEffect(() => {
+        if (!selectedImage) return
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            e.preventDefault() // Prevent default browser behavior
+            
+            if (e.key === 'ArrowLeft') {
+                goToPrevious()
+            } else if (e.key === 'ArrowRight') {
+                goToNext()
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [selectedImage, imageLinks])
 
     return (
         <>
@@ -64,7 +102,6 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
                                             fill
                                             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
                                             className="object-cover transition-transform duration-300 group-hover:scale-110"
-                                            unoptimized
                                             onError={() => handleImageError(index)}
                                         />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -82,13 +119,24 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
 
             {/* Dialog for full-size image */}
             <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-                <DialogContent className="max-w-7xl w-[95vw] h-[95vh] p-0 bg-black/95 border-white/10">
+                <DialogContent className="max-w-7xl w-[95vw] h-[95vh] p-0 bg-black/95 border-white/10" showCloseButton={false}>
                     {selectedImage && (
                         <div className="relative w-full h-full flex flex-col">
                             {/* Accessible title for screen readers */}
                             <DialogTitle className="sr-only">
                                 Image {selectedImage.index + 1} of {imageLinks.length}
                             </DialogTitle>
+
+                            {/* Close button */}
+                            <Button
+                                onClick={() => setSelectedImage(null)}
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-4 right-4 z-30 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-all cursor-pointer"
+                            >
+                                <X className="h-6 w-6" />
+                                <span className="sr-only">Close</span>
+                            </Button>
 
                             {/* Header */}
                             <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/80 to-transparent">
@@ -99,6 +147,18 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
 
                             {/* Image */}
                             <div className="relative w-full h-full flex items-center justify-center p-4">
+                                {/* Previous button */}
+                                {selectedImage.index > 0 && (
+                                    <Button
+                                        onClick={goToPrevious}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-all cursor-pointer"
+                                    >
+                                        <ChevronLeft className="h-8 w-8" />
+                                    </Button>
+                                )}
+
                                 <div className="relative w-full h-full">
                                     {imageErrors.has(selectedImage.index) ? (
                                         <div className="w-full h-full flex items-center justify-center">
@@ -119,12 +179,24 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
                                         />
                                     )}
                                 </div>
+
+                                {/* Next button */}
+                                {selectedImage.index < imageLinks.length - 1 && (
+                                    <Button
+                                        onClick={goToNext}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-all cursor-pointer"
+                                    >
+                                        <ChevronRight className="h-8 w-8" />
+                                    </Button>
+                                )}
                             </div>
 
                             {/* Navigation hints */}
                             <div className="absolute bottom-0 left-0 right-0 z-10 p-4 bg-gradient-to-t from-black/80 to-transparent">
                                 <p className="text-white/60 text-sm text-center">
-                                    Click outside or press ESC to close
+                                    Use ← → to navigate • Click outside or press ESC to close
                                 </p>
                             </div>
                         </div>
