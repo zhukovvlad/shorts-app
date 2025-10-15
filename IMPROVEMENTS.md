@@ -23,7 +23,7 @@
 - Унифицированная логика sign-in для всех провайдеров
 - Улучшенная поддержка GitHub OAuth
 
-📚 **Подробнее:** См. раздел [NextAuth v5 Migration & OAuth Refactoring (v1.7.0)](#nextauth-v5-migration--oauth-refactoring-v170)
+📚 **Подробнее:** См. раздел [NextAuth v5 & Code Quality (v1.7.0)](#nextauth-v5--code-quality-v170)
 
 ---
 
