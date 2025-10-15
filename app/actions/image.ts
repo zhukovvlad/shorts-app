@@ -4,9 +4,14 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { getModelById, getDefaultModel } from "@/lib/imageModels";
 import { logger } from "@/lib/logger";
+import OpenAI from "openai";
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_KEY,
+});
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const s3Client = new S3Client({
@@ -90,6 +95,83 @@ const getFileExtensionFromContentType = (contentType: string): string => {
   return 'png'; // По умолчанию
 };
 
+/**
+ * Генерация изображения через OpenAI DALL-E
+ */
+const processImageWithOpenAI = async (prompt: string, modelId: string) => {
+  try {
+    const modelConfig = getModelById(modelId);
+    if (!modelConfig || modelConfig.provider !== 'openai') {
+      throw new Error(`Invalid OpenAI model: ${modelId}`);
+    }
+
+    logger.info(`Generating image with OpenAI: ${modelConfig.name} (${modelConfig.id})`);
+
+    const params: OpenAI.Images.ImageGenerateParams = {
+      model: modelConfig.openaiModel!,
+      prompt: prompt,
+      n: 1,
+      response_format: 'url',
+      ...modelConfig.defaultParams,
+    };
+
+    const response = await openai.images.generate(params);
+
+    if (!response.data || response.data.length === 0) {
+      logger.error('OpenAI returned no data');
+      throw new Error('OpenAI did not return any data');
+    }
+
+    const imageUrl = response.data[0]?.url;
+    if (!imageUrl) {
+      logger.error('OpenAI returned no image URL');
+      throw new Error('OpenAI did not return an image URL');
+    }
+
+    logger.info(`OpenAI generated image URL: ${imageUrl}`);
+
+    // Загружаем изображение с OpenAI и сохраняем в S3
+    const imageResponse = await fetch(imageUrl);
+    
+    if (!imageResponse.ok) {
+      const errorText = await imageResponse.text().catch(() => 'Unknown error');
+      logger.error('Failed to fetch image from OpenAI URL', {
+        imageUrl,
+        status: imageResponse.status,
+        statusText: imageResponse.statusText,
+        errorText
+      });
+      throw new Error(`Failed to fetch image: ${imageResponse.status} ${imageResponse.statusText}`);
+    }
+
+    const arrayBuffer = await imageResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const contentType = imageResponse.headers.get('content-type') || 'image/png';
+    logger.info(`Image content-type: ${contentType}`);
+
+    const extension = getFileExtensionFromContentType(contentType);
+    const fileName = `${randomUUID()}.${extension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: fileName,
+      Body: buffer,
+      ContentType: contentType,
+    });
+
+    await s3Client.send(command);
+    const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    logger.info("OpenAI image uploaded to S3", { fileName, contentType });
+    return s3Url;
+  } catch (error) {
+    logger.error("Error processing image from OpenAI", {
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  }
+};
+
 const processImage = async (img: string, modelId?: string) => {
   try {
     // Получаем конфигурацию модели
@@ -99,7 +181,17 @@ const processImage = async (img: string, modelId?: string) => {
     }
     const model = modelConfig || getDefaultModel();
 
-    logger.info(`Processing image with model: ${model.name} (${model.id})`);
+    // Маршрутизация в зависимости от провайдера
+    if (model.provider === 'openai') {
+      return await processImageWithOpenAI(img, model.id);
+    }
+
+    // Для Replicate моделей используем существующую логику
+    if (!model.replicateModel) {
+      throw new Error(`Model ${model.id} is missing replicateModel configuration`);
+    }
+
+    logger.info(`Processing image with Replicate model: ${model.name} (${model.id})`);
 
     // Формируем параметры для модели
     const input = {

@@ -7,11 +7,15 @@
 
 import { logger } from './logger';
 
+export type ImageProvider = 'replicate' | 'openai';
+
 export interface ImageModel {
   id: string;
   name: string;
   description: string;
-  replicateModel: string;
+  provider: ImageProvider;
+  replicateModel?: string; // Для Replicate моделей
+  openaiModel?: string; // Для OpenAI моделей
   defaultParams: Record<string, any>;
   isPro?: boolean; // Платная модель
   speed: 'fast' | 'medium' | 'slow';
@@ -26,6 +30,7 @@ const FALLBACK_DEFAULT_MODEL: ImageModel = {
   id: 'ideogram-v3-turbo',
   name: 'Ideogram V3 Turbo',
   description: 'Быстрая генерация реалистичных изображений',
+  provider: 'replicate',
   replicateModel: 'ideogram-ai/ideogram-v3-turbo',
   defaultParams: {
     resolution: 'None',
@@ -42,6 +47,7 @@ export const IMAGE_MODELS: ImageModel[] = [
     id: 'ideogram-v3-turbo',
     name: 'Ideogram V3 Turbo',
     description: 'Быстрая генерация реалистичных изображений',
+    provider: 'replicate',
     replicateModel: 'ideogram-ai/ideogram-v3-turbo',
     defaultParams: {
       resolution: 'None',
@@ -56,6 +62,7 @@ export const IMAGE_MODELS: ImageModel[] = [
     id: 'flux-schnell',
     name: 'FLUX Schnell',
     description: 'Очень быстрая генерация качественных изображений',
+    provider: 'replicate',
     replicateModel: 'black-forest-labs/flux-schnell',
     defaultParams: {
       aspect_ratio: '9:16',
@@ -69,6 +76,7 @@ export const IMAGE_MODELS: ImageModel[] = [
     id: 'flux-pro',
     name: 'FLUX Pro',
     description: 'Профессиональное качество с улучшенной детализацией',
+    provider: 'replicate',
     replicateModel: 'black-forest-labs/flux-pro',
     defaultParams: {
       aspect_ratio: '9:16',
@@ -83,6 +91,7 @@ export const IMAGE_MODELS: ImageModel[] = [
     id: 'flux-dev',
     name: 'FLUX Dev',
     description: 'Баланс качества и скорости',
+    provider: 'replicate',
     replicateModel: 'black-forest-labs/flux-dev',
     defaultParams: {
       aspect_ratio: '9:16',
@@ -97,6 +106,7 @@ export const IMAGE_MODELS: ImageModel[] = [
     id: 'sdxl',
     name: 'Stable Diffusion XL',
     description: 'Проверенная модель с хорошим качеством',
+    provider: 'replicate',
     replicateModel: 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
     defaultParams: {
       width: 768,
@@ -107,6 +117,49 @@ export const IMAGE_MODELS: ImageModel[] = [
     },
     speed: 'medium',
     quality: 'high',
+  },
+  // OpenAI Models
+  {
+    id: 'dall-e-3',
+    name: 'DALL-E 3',
+    description: 'Передовая модель OpenAI с отличным пониманием текста',
+    provider: 'openai',
+    openaiModel: 'dall-e-3',
+    defaultParams: {
+      size: '1024x1792', // 9:16 aspect ratio
+      quality: 'standard',
+      style: 'vivid',
+    },
+    isPro: true,
+    speed: 'medium',
+    quality: 'ultra',
+  },
+  {
+    id: 'dall-e-3-hd',
+    name: 'DALL-E 3 HD',
+    description: 'DALL-E 3 с максимальным качеством детализации',
+    provider: 'openai',
+    openaiModel: 'dall-e-3',
+    defaultParams: {
+      size: '1024x1792', // 9:16 aspect ratio
+      quality: 'hd',
+      style: 'vivid',
+    },
+    isPro: true,
+    speed: 'slow',
+    quality: 'ultra',
+  },
+  {
+    id: 'dall-e-2',
+    name: 'DALL-E 2',
+    description: 'Более быстрая и экономичная модель OpenAI',
+    provider: 'openai',
+    openaiModel: 'dall-e-2',
+    defaultParams: {
+      size: '512x512', // DALL-E 2 не поддерживает 9:16, будет обрезано
+    },
+    speed: 'fast',
+    quality: 'standard',
   },
 ];
 
