@@ -43,13 +43,14 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
         if (!selectedImage) return
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            e.preventDefault() // Prevent default browser behavior
-            
             if (e.key === 'ArrowLeft') {
+                e.preventDefault() // Prevent default browser behavior for arrow keys
                 goToPrevious()
             } else if (e.key === 'ArrowRight') {
+                e.preventDefault() // Prevent default browser behavior for arrow keys
                 goToNext()
             }
+            // Other keys (like Escape) are not prevented and work normally
         }
 
         window.addEventListener('keydown', handleKeyDown)
@@ -118,7 +119,7 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
             </div>
 
             {/* Dialog for full-size image */}
-            <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+            <Dialog open={!!selectedImage} onOpenChange={(open) => { if (!open) setSelectedImage(null) }}>
                 <DialogContent className="max-w-7xl w-[95vw] h-[95vh] p-0 bg-black/95 border-white/10" showCloseButton={false}>
                     {selectedImage && (
                         <div className="relative w-full h-full flex flex-col">
@@ -153,9 +154,11 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
                                         onClick={goToPrevious}
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Previous image"
                                         className="absolute left-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-all cursor-pointer"
                                     >
                                         <ChevronLeft className="h-8 w-8" />
+                                        <span className="sr-only">Previous image</span>
                                     </Button>
                                 )}
 
@@ -186,9 +189,11 @@ export const ImageGallery = ({ imageLinks }: ImageGalleryProps) => {
                                         onClick={goToNext}
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Next image"
                                         className="absolute right-4 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-sm transition-all cursor-pointer"
                                     >
                                         <ChevronRight className="h-8 w-8" />
+                                        <span className="sr-only">Next image</span>
                                     </Button>
                                 )}
                             </div>

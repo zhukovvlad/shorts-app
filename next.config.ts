@@ -61,13 +61,12 @@ const nextConfig: NextConfig = {
     contentDispositionType: 'attachment',
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    // Убираем WebP конвертацию - оставляем исходные форматы
-    // formats: ['image/webp'],
+    // По умолчанию Next.js использует AVIF/WebP конвертацию (formats не указан = defaults активны)
     minimumCacheTTL: 3600, // Уменьшаем до 1 часа для лучшей производительности
-    // Оставляем оптимизацию, но с более мягкими настройками
     loader: 'default',
-    // Note: ImageGallery компонент использует unoptimized prop на уровне компонента
-    // для избежания таймаутов при загрузке больших изображений из S3
+    // Note:
+    // - ImageGallery управляет `unoptimized` на уровне компонента для full-size изображений.
+    // - Глобально оставляем дефолтную авто-конвертацию Next.js в AVIF/WebP (thumbnails оптимизируются).
   },
 };
 
