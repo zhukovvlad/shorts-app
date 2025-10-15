@@ -97,14 +97,14 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                             onSelect={(e) => { e.stopPropagation(); handleDownload(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
-                            <Download className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                            <Download className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
                             <span>Download</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                             onSelect={(e) => { e.stopPropagation(); handleCopyLink(); setDropdownOpen(false); }}
                             className="cursor-pointer"
                         >
-                            <Copy className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                            <Copy className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
                             <span>Copy Link</span>
                         </DropdownMenuItem>
                         <AlertDialog>
@@ -113,7 +113,7 @@ export const VideoCard = ({ video, priority = false }: VideoCardProps) => {
                                     onSelect={(e) => e.preventDefault()}
                                     className="text-red-400 hover:bg-red-950 focus:bg-red-950 hover:text-red-400 focus:text-red-400 cursor-pointer"
                                 >
-                                    <Trash2 className="mr-2 h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
+                                    <Trash2 className="mr-2 h-4 w-4 transition-transform duration-200 hover:scale-110" />
                                     <span>Delete</span>
                                 </DropdownMenuItem>
                             </AlertDialogTrigger>
