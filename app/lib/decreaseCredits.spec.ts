@@ -69,7 +69,43 @@ describe('decreaseCredits', () => {
 
   describe('Валидация входных параметров', () => {
     it('должно выбросить ошибку если userId пустой', async () => {
-      await expect(decreaseCredits('', 5)).rejects.toThrow('userId is required');
+      await expect(decreaseCredits('', 5)).rejects.toThrow('userId is required and cannot be whitespace-only');
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('должно выбросить ошибку если userId содержит только пробелы', async () => {
+      await expect(decreaseCredits('   ', 5)).rejects.toThrow('userId is required and cannot be whitespace-only');
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('должно выбросить ошибку если userId содержит только табы и пробелы', async () => {
+      await expect(decreaseCredits('\t  \n', 5)).rejects.toThrow('userId is required and cannot be whitespace-only');
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('должно обрезать пробелы в userId', async () => {
+      (prisma.user.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      await decreaseCredits('  user-123  ', 1);
+
+      expect(prisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-123', credits: { gte: 1 } },
+        data: { credits: { decrement: 1 } },
+      });
+    });
+
+    it('должно выбросить ошибку при NaN amount', async () => {
+      await expect(decreaseCredits('user-123', NaN)).rejects.toThrow('amount must be a finite number');
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('должно выбросить ошибку при Infinity amount', async () => {
+      await expect(decreaseCredits('user-123', Infinity)).rejects.toThrow('amount must be a finite number');
+      expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('должно выбросить ошибку при -Infinity amount', async () => {
+      await expect(decreaseCredits('user-123', -Infinity)).rejects.toThrow('amount must be a finite number');
       expect(prisma.user.updateMany).not.toHaveBeenCalled();
     });
 
@@ -129,16 +165,6 @@ describe('decreaseCredits', () => {
       (prisma.user.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
 
       await expect(decreaseCredits('user-123', 2)).resolves.toBeUndefined();
-    });
-
-    it('должно НЕ использовать update (который не проверяет баланс)', async () => {
-      (prisma.user.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-      await decreaseCredits('user-123', 3);
-
-      // Проверяем что вызван именно updateMany, а не update
-      expect(prisma.user.updateMany).toHaveBeenCalled();
-      expect(prisma.user).not.toHaveProperty('update');
     });
   });
 

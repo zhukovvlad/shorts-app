@@ -942,7 +942,7 @@ import { computeModelCost, getDefaultModel, getModelById } from '@/lib/imageMode
 #### 2. Валидация модели с единым `resolvedModelId`
 ```typescript
 // ✅ Валидация и разрешение модели изображений
-// Проверяем что переданная модель существует в IMAGE_MODELS, иначе используем default
+// Проверяем, что переданная модель существует в IMAGE_MODELS, иначе используем default
 let resolvedModelId: string;
 if (imageModel) {
   const modelExists = getModelById(imageModel);
@@ -1049,6 +1049,163 @@ export const decreaseCredits = async (userId: string, amount = 1): Promise<void>
 
 ---
 
+## Замечание #11: Усиленная валидация decreaseCredits для NaN/Infinity
+**Дата:** 16 октября 2025, 14:30
+
+> In app/lib/decreaseCredits.ts around lines 17 to 45, Math.floor can receive NaN or Infinity which will produce invalid values passed to Prisma; before flooring, ensure amount is a finite number; additionally trim userId and validate it's non-empty after trimming to avoid whitespace-only IDs.
+
+### Проблема
+**До (Замечание #10):**
+```typescript
+export const decreaseCredits = async (userId: string, amount = 1): Promise<void> => {
+  const amt = Math.floor(amount); // ❌ Может получить NaN/Infinity
+  
+  if (!userId) { // ❌ Не проверяет whitespace-only
+    throw new Error('userId is required');
+  }
+  
+  if (amt <= 0) return;
+  
+  const result = await prisma.user.updateMany({
+    where: { id: userId, credits: { gte: amt } }, // ❌ userId не trim'нут
+    data: { credits: { decrement: amt } },
+  });
+  // ...
+}
+```
+
+**Уязвимости:**
+- ❌ `Math.floor(NaN)` → `NaN` → некорректное значение в Prisma
+- ❌ `Math.floor(Infinity)` → `Infinity` → некорректное значение в Prisma
+- ❌ `userId = "   "` проходит проверку `!userId` но не валиден
+- ❌ `userId` с пробелами не trim'нуты → разные ID в БД
+
+### Решение
+**После (Замечание #11):**
+```typescript
+export const decreaseCredits = async (userId: string, amount = 1): Promise<void> => {
+  // 1. Валидация userId с trim
+  const trimmedUserId = userId?.trim();
+  if (!trimmedUserId) {
+    throw new Error('userId is required and cannot be whitespace-only');
+  }
+  
+  // 2. Валидация amount на конечность
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount)) {
+    throw new Error('amount must be a finite number');
+  }
+  
+  // 3. Санитизация - округление только после проверки конечности
+  const amt = Math.floor(numericAmount);
+  
+  // 4. Ранний выход при невалидной сумме
+  if (amt <= 0) return;
+  
+  // 5. Атомарное списание с trimmed userId
+  const result = await prisma.user.updateMany({
+    where: { 
+      id: trimmedUserId, // ✅ Используем trimmed userId
+      credits: { gte: amt } 
+    },
+    data: { credits: { decrement: amt } },
+  });
+  
+  if (result.count === 0) {
+    throw new Error('Insufficient credits or user not found');
+  }
+}
+```
+
+### Что исправлено
+
+#### 1. Защита от NaN/Infinity
+**Проблема:** `Math.floor(NaN)` и `Math.floor(Infinity)` возвращают `NaN` и `Infinity`, которые Prisma не может обработать.
+
+**Решение:**
+```typescript
+const numericAmount = Number(amount);
+if (!Number.isFinite(numericAmount)) {
+  throw new Error('amount must be a finite number');
+}
+const amt = Math.floor(numericAmount);
+```
+
+**Покрыто тестами:**
+- ✅ `decreaseCredits('user-123', NaN)` → выбрасывает ошибку
+- ✅ `decreaseCredits('user-123', Infinity)` → выбрасывает ошибку
+- ✅ `decreaseCredits('user-123', -Infinity)` → выбрасывает ошибку
+
+#### 2. Trim и проверка whitespace-only userId
+**Проблема:** `userId = "   "` проходит проверку `!userId`, но невалиден для БД.
+
+**Решение:**
+```typescript
+const trimmedUserId = userId?.trim();
+if (!trimmedUserId) {
+  throw new Error('userId is required and cannot be whitespace-only');
+}
+```
+
+**Покрыто тестами:**
+- ✅ `decreaseCredits('', 5)` → выбрасывает ошибку
+- ✅ `decreaseCredits('   ', 5)` → выбрасывает ошибку
+- ✅ `decreaseCredits('\t  \n', 5)` → выбрасывает ошибку
+- ✅ `decreaseCredits('  user-123  ', 1)` → обрезает пробелы, работает корректно
+
+### Тестирование
+
+**Добавлено 6 новых тестов:**
+```typescript
+it('должно выбросить ошибку если userId содержит только пробелы', async () => {
+  await expect(decreaseCredits('   ', 5)).rejects.toThrow('userId is required and cannot be whitespace-only');
+});
+
+it('должно выбросить ошибку если userId содержит только табы и пробелы', async () => {
+  await expect(decreaseCredits('\t  \n', 5)).rejects.toThrow('userId is required and cannot be whitespace-only');
+});
+
+it('должно обрезать пробелы в userId', async () => {
+  (prisma.user.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+  await decreaseCredits('  user-123  ', 1);
+  expect(prisma.user.updateMany).toHaveBeenCalledWith({
+    where: { id: 'user-123', credits: { gte: 1 } },
+    data: { credits: { decrement: 1 } },
+  });
+});
+
+it('должно выбросить ошибку при NaN amount', async () => {
+  await expect(decreaseCredits('user-123', NaN)).rejects.toThrow('amount must be a finite number');
+});
+
+it('должно выбросить ошибку при Infinity amount', async () => {
+  await expect(decreaseCredits('user-123', Infinity)).rejects.toThrow('amount must be a finite number');
+});
+
+it('должно выбросить ошибку при -Infinity amount', async () => {
+  await expect(decreaseCredits('user-123', -Infinity)).rejects.toThrow('amount must be a finite number');
+});
+```
+
+**Результаты:**
+- ✅ `decreaseCredits.spec.ts`: 25/25 тестов прошли (было 19, добавилось 6)
+- ✅ Все тесты проекта: 235/235 прошли (было 229)
+- ✅ TypeScript компиляция: без ошибок
+- ✅ ESLint: 0 errors
+
+### Файлы изменены
+- `app/lib/decreaseCredits.ts` - усиленная валидация
+- `app/lib/decreaseCredits.spec.ts` - +6 тестов
+
+### Преимущества
+- ✅ **Защита от NaN/Infinity:** Prisma не получит невалидные числа
+- ✅ **Trim userId:** Консистентность ID в БД, нет дубликатов с пробелами
+- ✅ **Whitespace-only защита:** Невалидные userId отклоняются
+- ✅ **Информативные ошибки:** Понятные сообщения для отладки
+- ✅ **Полное покрытие тестами:** 25 unit-тестов для всех edge cases
+
+---
+
 ## История изменений
 
 ### 15 октября 2025
@@ -1103,9 +1260,25 @@ export const decreaseCredits = async (userId: string, amount = 1): Promise<void>
   - Явный тип возврата `Promise<void>`
   - Добавлено 19 unit-тестов (100% покрытие функции)
 
+### 16 октября 2025, 14:30
+- ✅ Замечание #11: Усиленная валидация decreaseCredits для NaN/Infinity
+  - Добавлена проверка `Number.isFinite()` перед `Math.floor()` для защиты от NaN/Infinity
+  - `.trim()` для userId с проверкой на whitespace-only строки
+  - Информативные ошибки: "amount must be a finite number" и "userId is required and cannot be whitespace-only"
+  - Добавлено 6 новых unit-тестов (NaN, Infinity, -Infinity, whitespace userId)
+  - Общее количество тестов для decreaseCredits: 25 (было 19)
+
+### 16 октября 2025, 15:00
+- ✅ Nitpicks #38-42: Финальные улучшения безопасности и качества
+  - Nitpick #38: `Object.prototype.hasOwnProperty.call()` вместо truthiness для безопасного поиска
+  - Nitpick #39: Исправлена грамматика (добавлена запятая в русском тексте)
+  - Nitpick #40: Удален хрупкий тест проверки отсутствия `prisma.user.update`
+  - Nitpick #41: Верифицировано наличие тестов для NaN/Infinity (реализовано в #11)
+  - Nitpick #42: Верифицировано наличие тестов для trim userId (реализовано в #11)
+
 ---
 
 **Дата первого исправления:** 15 октября 2025  
-**Дата последнего обновления:** 16 октября 2025, 13:00  
-**Всего исправлений:** 10 замечаний + 31 nitpicks = 41 ✅  
+**Дата последнего обновления:** 16 октября 2025, 15:00  
+**Всего исправлений:** 11 замечаний + 42 nitpicks = 53 ✅  
 **Статус:** ✅ Полностью завершено

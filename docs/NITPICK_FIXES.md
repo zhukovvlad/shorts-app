@@ -662,4 +662,130 @@ describe('case and whitespace robustness', () => {
 
 ---
 
+## Nitpicks #38-42: Финальные улучшения безопасности и качества
+
+### Nitpick #38: Use hasOwn для безопасного поиска свойств
+
+**Файл:** `lib/imageModels.ts` (строки 206-216, 225-235)
+
+**Проблема:** Использование truthiness для проверки существования свойства небезопасно:
+- Может не сработать для валидных значений (например, `0`)
+- Уязвимо к prototype pollution
+
+**Решение:**
+```typescript
+// Было (небезопасно):
+if (MODEL_COEFFICIENTS_BY_ID[trimmedInput]) {
+  return MODEL_COEFFICIENTS_BY_ID[trimmedInput];
+}
+
+// Стало (безопасно):
+if (Object.prototype.hasOwnProperty.call(MODEL_COEFFICIENTS_BY_ID, trimmedInput)) {
+  return MODEL_COEFFICIENTS_BY_ID[trimmedInput];
+}
+```
+
+✅ Защита от prototype pollution  
+✅ Корректная работа с `0` и другими falsy значениями
+
+---
+
+### Nitpick #39: Запятая в русской прозе
+
+**Файл:** `docs/CODE_REVIEW_FIX.md` (строки 911-1110)
+
+**Проблема:** Отсутствует запятая в сложноподчиненном предложении
+
+**Решение:**
+- **Было:** `Проверяем что переданная модель существует`
+- **Стало:** `Проверяем, что переданная модель существует`
+
+✅ Грамматически правильное предложение
+
+---
+
+### Nitpick #40: Удалить хрупкий тест
+
+**Файл:** `app/lib/decreaseCredits.spec.ts` (строки 134-142)
+
+**Проблема:** Тест `должно НЕ использовать update` проверяет отсутствие метода в mock'е, а не реальное поведение:
+```typescript
+expect(prisma.user).not.toHaveProperty('update');
+```
+Это хрупко и не доказывает, что production код не вызовет `update`.
+
+**Решение:** Удален хрупкий тест. Атомарность уже проверена другим тестом:
+```typescript
+it('должно использовать updateMany с условием credits >= amount', async () => {
+  // Этот тест достаточен для проверки атомарности
+});
+```
+
+✅ -1 хрупкий тест (было 235, стало 234)  
+✅ Покрытие атомарности сохранено
+
+---
+
+### Nitpick #41: Тесты для NaN/Infinity (уже реализовано)
+
+**Файл:** `app/lib/decreaseCredits.spec.ts` (строки 145-178)
+
+**Статус:** ✅ Уже реализовано в Замечании #11
+
+**Существующие тесты:**
+- ✅ `должно выбросить ошибку при NaN amount`
+- ✅ `должно выбросить ошибку при Infinity amount`
+- ✅ `должно выбросить ошибку при -Infinity amount`
+
+**Реализация:**
+```typescript
+const numericAmount = Number(amount);
+if (!Number.isFinite(numericAmount)) {
+  throw new Error('amount must be a finite number');
+}
+```
+
+---
+
+### Nitpick #42: Тесты для trim userId (уже реализовано)
+
+**Файл:** `app/lib/decreaseCredits.spec.ts` (строки 70-74)
+
+**Статус:** ✅ Уже реализовано в Замечании #11
+
+**Существующие тесты:**
+- ✅ `должно выбросить ошибку если userId содержит только пробелы`
+- ✅ `должно выбросить ошибку если userId содержит только табы и пробелы`
+- ✅ `должно обрезать пробелы в userId`
+
+**Реализация:**
+```typescript
+const trimmedUserId = userId?.trim();
+if (!trimmedUserId) {
+  throw new Error('userId is required and cannot be whitespace-only');
+}
+```
+
+---
+
+## Итого Nitpicks #38-42
+
+**Измененные файлы:** 3
+- `lib/imageModels.ts` — hasOwnProperty для безопасного поиска
+- `docs/CODE_REVIEW_FIX.md` — запятая в русском тексте
+- `app/lib/decreaseCredits.spec.ts` — удален хрупкий тест
+
+**Удалено тестов:** -1 (хрупкий)  
+**Всего тестов:** 234 passed ✅
+
+**Категории:**
+- 🔒 Безопасность: 1 (hasOwnProperty)
+- ✍️ Редактура: 1 (запятая)
+- 🧪 Качество тестов: 1 (удален хрупкий)
+- ✅ Верификация: 2 (уже реализовано)
+
+---
+
+**ИТОГО ВСЕХ NITPICKS:** 42 ✅
+
 Код готов к production! 🚀

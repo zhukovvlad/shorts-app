@@ -225,8 +225,8 @@ export const getModelCoefficient = (modelIdOrName?: string): number => {
   // Приоритет: сначала пробуем по ID (более надежно), затем по имени
   const trimmedInput = modelIdOrName.trim();
   
-  // Проверяем по ID напрямую
-  if (MODEL_COEFFICIENTS_BY_ID[trimmedInput]) {
+  // Проверяем по ID напрямую используя hasOwnProperty для безопасного поиска
+  if (Object.prototype.hasOwnProperty.call(MODEL_COEFFICIENTS_BY_ID, trimmedInput)) {
     return MODEL_COEFFICIENTS_BY_ID[trimmedInput];
   }
 
@@ -234,8 +234,13 @@ export const getModelCoefficient = (modelIdOrName?: string): number => {
   const byId = IMAGE_MODELS.find(m => m.id === trimmedInput);
   const modelName = (byId ? byId.name : trimmedInput).trim();
 
-  const coeff = MODEL_COEFFICIENTS[modelName];
-  return typeof coeff === 'number' && isFinite(coeff) && coeff > 0 ? coeff : 1.0;
+  // Проверяем по имени также используя hasOwnProperty
+  if (Object.prototype.hasOwnProperty.call(MODEL_COEFFICIENTS, modelName)) {
+    const coeff = MODEL_COEFFICIENTS[modelName];
+    return typeof coeff === 'number' && isFinite(coeff) && coeff > 0 ? coeff : 1.0;
+  }
+  
+  return 1.0;
 };
 
 /**
