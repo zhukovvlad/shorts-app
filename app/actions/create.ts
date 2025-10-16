@@ -25,6 +25,7 @@ import { prisma } from "../lib/db"
 import { videoQueue } from "../lib/queue"
 import { logger } from "@/lib/logger"
 import { revalidateTag } from "next/cache"
+import { computeModelCost, getDefaultModel } from '@/lib/imageModels'
 
 /**
  * Валидирует и очищает входной промпт для создания видео
@@ -123,8 +124,13 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       promptLength: validatedPrompt.length
     });
 
-    // Примечание: проверка кредитов происходит атомарно внутри транзакции
+  // Примечание: проверка кредитов происходит атомарно внутри транзакции
     // для предотвращения состояний гонки
+
+  // Рассчитываем сколько кредитов требуется для выбранной модели
+  const chosenModel = imageModel || getDefaultModel().id
+  const cost = computeModelCost(chosenModel, 1)
+  logger.debug('Computed model cost', { userId, model: chosenModel, cost })
 
     // Используем транзакцию для атомарности операций
     // Все операции внутри будут либо выполнены полностью, либо откачены
@@ -146,14 +152,14 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       const creditUpdateResult = await tx.user.updateMany({
         where: {
           id: userId,
-          credits: { gt: 0 } // Только если кредитов больше 0
+          credits: { gte: cost } // Только если кредитов достаточно для стоимости модели
         },
-        data: { credits: { decrement: 1 } }
+        data: { credits: { decrement: cost } }
       })
 
       // Проверяем, что обновление прошло успешно
       // Если count = 0, нужно различить "пользователь не найден" от "недостаточно кредитов"
-      if (creditUpdateResult.count === 0) {
+  if (creditUpdateResult.count === 0) {
         // Выполняем дополнительную проверку существования пользователя в той же транзакции
         const userExists = await tx.user.findUnique({
           where: { id: userId },
@@ -163,7 +169,7 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
         if (!userExists) {
           throw new Error('User not found')
         } else {
-          throw new Error('Insufficient credits. Credits may have been used by another operation.')
+          throw new Error('Insufficient credits. Credits may have been used by another operation or model cost is higher than balance.')
         }
       }
 

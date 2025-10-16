@@ -29,7 +29,7 @@ import { useRouter } from "next/navigation";
 import { createVideo } from "../actions/create";
 import { ChevronDown, ChevronUp, Lightbulb, Sparkles, Zap, Crown } from "lucide-react";
 import { useVideoProgress } from "../hooks/useVideoProgress";
-import { IMAGE_MODELS, getDefaultModel } from "@/lib/imageModels";
+import { IMAGE_MODELS, getDefaultModel, computeModelCost } from "@/lib/imageModels";
 import { Badge } from "@/components/ui/badge";
 
 const CreateProject = ({
@@ -86,6 +86,7 @@ const CreateProject = ({
 
   // Получаем информацию о выбранной модели
   const selectedModelInfo = IMAGE_MODELS.find(m => m.id === selectedModel) || getDefaultModel();
+  const selectedModelCost = computeModelCost(selectedModel);
   
   // Иконка для качества
   const getQualityIcon = (quality: string) => {
@@ -125,17 +126,18 @@ const CreateProject = ({
                         value={model.id}
                         className="text-white hover:bg-gray-800 cursor-pointer"
                       >
-                        <div className="flex items-center gap-2">
-                          <span>{model.name}</span>
-                          {model.isPro && (
-                            <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
-                              PRO
-                            </Badge>
-                          )}
-                          <span className="text-xs text-gray-400">
-                            ({model.speed} • {model.quality})
-                          </span>
-                        </div>
+                          <div className="flex items-center gap-2 justify-between w-full">
+                            <div className="flex items-center gap-2">
+                              <span>{model.name}</span>
+                              {model.isPro && (
+                                <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
+                                  PRO
+                                </Badge>
+                              )}
+                              <span className="text-xs text-gray-400">({model.speed} • {model.quality})</span>
+                            </div>
+                            <div className="text-xs text-gray-300">{computeModelCost(model.id)} credit{computeModelCost(model.id) > 1 ? 's' : ''}</div>
+                          </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -173,7 +175,8 @@ const CreateProject = ({
                     return setTimeout(() => setShowLoginDialog(true), 700);
                   }
 
-                  if (credits < 1) {
+                  // Проверяем достаточность кредитов для выбранной модели
+                  if (credits < selectedModelCost) {
                     return setTimeout(() => setShowCreditDialog(true), 700);
                   }
 
