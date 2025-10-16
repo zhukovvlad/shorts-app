@@ -25,7 +25,7 @@ import { prisma } from "../lib/db"
 import { videoQueue } from "../lib/queue"
 import { logger } from "@/lib/logger"
 import { revalidateTag } from "next/cache"
-import { computeModelCost, getDefaultModel } from '@/lib/imageModels'
+import { computeModelCost, getDefaultModel, getModelById } from '@/lib/imageModels'
 
 /**
  * Валидирует и очищает входной промпт для создания видео
@@ -124,13 +124,38 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       promptLength: validatedPrompt.length
     });
 
-  // Примечание: проверка кредитов происходит атомарно внутри транзакции
-    // для предотвращения состояний гонки
+    // Валидация и разрешение модели изображений
+    // Проверяем что переданная модель существует в IMAGE_MODELS, иначе используем default
+    let resolvedModelId: string;
+    if (imageModel) {
+      const modelExists = getModelById(imageModel);
+      if (modelExists) {
+        resolvedModelId = imageModel;
+      } else {
+        logger.warn('Unknown image model provided, falling back to default', {
+          userId,
+          providedModel: imageModel,
+          defaultModel: getDefaultModel().id
+        });
+        resolvedModelId = getDefaultModel().id;
+      }
+    } else {
+      resolvedModelId = getDefaultModel().id;
+    }
 
-  // Рассчитываем сколько кредитов требуется для выбранной модели
-  const chosenModel = imageModel || getDefaultModel().id
-  const cost = computeModelCost(chosenModel, 1)
-  logger.debug('Computed model cost', { userId, model: chosenModel, cost })
+    // Рассчитываем сколько кредитов требуется для выбранной модели
+    const cost = computeModelCost(resolvedModelId, 1);
+    logger.debug('Computed model cost', { userId, model: resolvedModelId, cost });
+
+    // TODO: Consider persisting `cost` with the Video record for audit/debugging purposes.
+    // This would require adding a `creditsCharged` field to the Video model in schema.prisma
+    // and including it in the video.create() data below. Benefits:
+    // - Historical cost tracking if coefficients change over time
+    // - Support/refund cases with exact charge amounts
+    // - Analytics on credit usage per model
+
+    // Примечание: проверка кредитов происходит атомарно внутри транзакции
+    // для предотвращения состояний гонки
 
     // Используем транзакцию для атомарности операций
     // Все операции внутри будут либо выполнены полностью, либо откачены
@@ -187,7 +212,7 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
     if (videoId) {
       try {
         const { setVideoMetadata } = await import('@/lib/redis');
-        await setVideoMetadata(videoId, { imageModel: imageModel || 'ideogram-v3-turbo' });
+        await setVideoMetadata(videoId, { imageModel: resolvedModelId });
       } catch (redisError) {
         logger.warn('Failed to save imageModel to Redis, will use default', {
           error: redisError instanceof Error ? redisError.message : String(redisError)

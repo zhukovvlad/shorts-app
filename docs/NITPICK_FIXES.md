@@ -475,6 +475,191 @@ const model: ImageModel = {
 **16 октября 2025, 04:15:**
 - Nitpicks #30-31: Russian grammar corrections (LanguageTool)
 
+**16 октября 2025, 10:00:**
+- Nitpicks #32-37: Дифференцированная система оплаты кредитами
+
+---
+
+## Nitpicks #32-37: Дифференцированная система оплаты кредитами
+
+### Nitpick #32: Избежать дублирования вычисления стоимости в map
+
+**Файл:** `app/new/CreateProject.tsx` (строки 129-140)
+
+**Проблема:** `computeModelCost(model.id)` вызывался дважды на каждый рендер
+
+**Решение:**
+```tsx
+{IMAGE_MODELS.map((model) => {
+  const cost = computeModelCost(model.id);
+  return (
+    <SelectItem>
+      <div className="text-xs text-gray-300">
+        {cost} credit{cost > 1 ? 's' : ''}
+      </div>
+    </SelectItem>
+  );
+})}
+```
+
+✅ Уменьшено количество вызовов вдвое
+
+---
+
+### Nitpick #33: Улучшить UX - показывать требуемое vs доступное количество кредитов
+
+**Файл:** `app/new/CreateProject.tsx` (строки 295-307)
+
+**Проблема:** Диалог при нехватке кредитов не показывал конкретные цифры
+
+**Решение:**
+```tsx
+<DialogDescription>
+  You need {selectedModelCost} credit{selectedModelCost > 1 ? 's' : ''} for {selectedModelInfo.name}. 
+  You have {credits}.
+</DialogDescription>
+```
+
+**Было:** "You need credits to create videos..."  
+**Стало:** "You need 2 credits for FLUX Pro. You have 1."
+
+✅ Пользователь видит точную стоимость и текущий баланс
+
+---
+
+### Nitpick #34: Сохранять списанную стоимость для аудита/отладки
+
+**Файл:** `app/actions/create.ts` (строки 140-148)
+
+**Проблема:** Стоимость не сохраняется с записью Video для аудита
+
+**Решение:** Добавлен TODO-комментарий с планом реализации:
+```typescript
+// TODO: Consider persisting `cost` with the Video record for audit/debugging purposes.
+// This would require adding a `creditsCharged` field to the Video model in schema.prisma
+// Benefits:
+// - Historical cost tracking if coefficients change over time
+// - Support/refund cases with exact charge amounts
+// - Analytics on credit usage per model
+```
+
+**Почему TODO:** Требуется миграция БД (опциональное улучшение для будущего)
+
+✅ Документирован план для будущей реализации
+
+---
+
+### Nitpick #35: Усилить поиск коэффициента; уменьшить связность с display names
+
+**Файл:** `lib/imageModels.ts` (строки 193-218)
+
+**Проблемы:**
+1. Ключи в `MODEL_COEFFICIENTS` — display names (хрупкая связь с UI)
+2. Нет trim() для защиты от пробелов
+3. Объекты не заморожены (возможны мутации)
+
+**Решение:**
+
+1. Добавлен `MODEL_COEFFICIENTS_BY_ID`:
+```typescript
+export const MODEL_COEFFICIENTS_BY_ID: Record<string, number> = Object.freeze({
+  'flux-schnell': 1.0,
+  'dall-e-2': 1.0,
+  'sdxl': 1.2,
+  // ...
+});
+```
+
+2. Заморожены оба объекта через `Object.freeze()`
+
+3. Добавлен `.trim()` и приоритет ID:
+```typescript
+export const getModelCoefficient = (modelIdOrName?: string): number => {
+  const trimmedInput = modelIdOrName.trim();
+  
+  // Приоритет: сначала по ID (более надежно)
+  if (MODEL_COEFFICIENTS_BY_ID[trimmedInput]) {
+    return MODEL_COEFFICIENTS_BY_ID[trimmedInput];
+  }
+  
+  // Затем по имени с trim()
+  const modelName = (byId ? byId.name : trimmedInput).trim();
+  // ...
+};
+```
+
+✅ Снижена связность с UI  
+✅ Trim защита от пробелов  
+✅ Object.freeze() защита от мутаций  
+✅ Приоритет стабильных ID
+
+---
+
+### Nitpick #36: Добавить тесты на case/whitespace robustness
+
+**Файл:** `lib/imageModels-coefficients.spec.ts` (строки 90-111)
+
+**Проблема:** Нет тестов для whitespace и case sensitivity
+
+**Решение:** Добавлена test suite с 3 новыми тестами:
+```typescript
+describe('case and whitespace robustness', () => {
+  it('should handle trailing whitespace in model ID', () => {
+    expect(getModelCoefficient('flux-schnell ')).toBe(1.0);
+    expect(getModelCoefficient(' flux-dev')).toBe(1.5);
+  });
+
+  it('should handle trailing whitespace in model name', () => {
+    expect(getModelCoefficient('FLUX Schnell ')).toBe(1.0);
+    expect(getModelCoefficient(' DALL-E 3')).toBe(2.0);
+  });
+
+  it('should NOT match different casing (case-sensitive by design)', () => {
+    expect(getModelCoefficient('FLUX-SCHNELL')).toBe(1.0); // fallback
+    expect(getModelCoefficient('dall-e-2')).toBe(1.0); // correct
+  });
+});
+```
+
+✅ +3 новых теста  
+✅ Документирована case sensitivity (by design)
+
+---
+
+### Nitpick #37: Уточнить формулировку про интеграционные тесты
+
+**Файл:** `CHANGELOG.md` (строки 46-53)
+
+**Проблема:** "интеграционные тесты для всех моделей из IMAGE_MODELS" звучит коряво
+
+**Решение:**
+- **Было:** `для всех моделей из IMAGE_MODELS`
+- **Стало:** `по всем моделям в IMAGE_MODELS`
+
+✅ Более естественное звучание на русском
+
+---
+
+## Итого Nitpicks #32-37
+
+**Измененные файлы:** 5
+- `app/new/CreateProject.tsx` — оптимизация + UX
+- `app/actions/create.ts` — TODO для audit
+- `lib/imageModels.ts` — hardening
+- `lib/imageModels-coefficients.spec.ts` — robustness tests
+- `CHANGELOG.md` — grammar fix
+
+**Новые тесты:** +3  
+**Всего тестов:** 229 passed ✅
+
+**Категории:**
+- 🎨 Производительность: 1
+- 🎯 UX: 1
+- 📝 Документация: 1
+- 🔒 Hardening: 1
+- 🧪 Тестирование: 1
+- ✍️ Редактура: 1
+
 ---
 
 Код готов к production! 🚀

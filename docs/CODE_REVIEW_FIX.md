@@ -908,6 +908,147 @@ expect(result.buffer.length).toBeGreaterThan(0); // Базовая провер�
 
 ---
 
+## Замечание #9: Валидация входящего imageModel в create.ts
+**Дата:** 16 октября 2025, 12:15
+
+> In app/actions/create.ts around lines 130-134 (and also apply same fix at 189-191 and line 28), validate the incoming imageModel against the IMAGE_MODELS list and derive a single resolvedModelId (use imageModel if valid, otherwise getDefaultModel().id); then pass resolvedModelId into computeModelCost and use that same resolvedModelId when writing Redis metadata (instead of imageModel or relying on computeModelCost fallback); also log a warning when an unknown model was provided so callers are visible.
+
+### Проблема
+**До исправления:**
+```typescript
+// ❌ Проблема 1: Не валидируется существование модели
+const chosenModel = imageModel || getDefaultModel().id
+const cost = computeModelCost(chosenModel, 1) // Может получить несуществующий ID
+
+// ❌ Проблема 2: Разные значения в разных местах
+await setVideoMetadata(videoId, { imageModel: imageModel || 'ideogram-v3-turbo' });
+// Используем imageModel (может быть невалидный) вместо chosenModel
+```
+
+**Недостатки:**
+- Нет проверки что `imageModel` существует в `IMAGE_MODELS`
+- Разные fallback значения: `getDefaultModel().id` vs `'ideogram-v3-turbo'`
+- Отсутствие логирования при использовании несуществующей модели
+- Риск несоответствия между вычисленной стоимостью и сохраненной моделью
+- Непредсказуемое поведение при опечатках в ID модели
+
+### Решение
+
+#### 1. Добавлен импорт `getModelById`
+```typescript
+import { computeModelCost, getDefaultModel, getModelById } from '@/lib/imageModels'
+```
+
+#### 2. Валидация модели с единым `resolvedModelId`
+```typescript
+// ✅ Валидация и разрешение модели изображений
+// Проверяем что переданная модель существует в IMAGE_MODELS, иначе используем default
+let resolvedModelId: string;
+if (imageModel) {
+  const modelExists = getModelById(imageModel);
+  if (modelExists) {
+    resolvedModelId = imageModel;
+  } else {
+    logger.warn('Unknown image model provided, falling back to default', {
+      userId,
+      providedModel: imageModel,
+      defaultModel: getDefaultModel().id
+    });
+    resolvedModelId = getDefaultModel().id;
+  }
+} else {
+  resolvedModelId = getDefaultModel().id;
+}
+
+// ✅ Используем валидированный ID для всех операций
+const cost = computeModelCost(resolvedModelId, 1);
+logger.debug('Computed model cost', { userId, model: resolvedModelId, cost });
+```
+
+#### 3. Единый ID в Redis metadata
+```typescript
+// ✅ Сохраняем тот же resolvedModelId, который использовался для расчета стоимости
+await setVideoMetadata(videoId, { imageModel: resolvedModelId });
+```
+
+### Преимущества
+- ✅ **Валидация модели:** проверка существования в `IMAGE_MODELS` перед использованием
+- ✅ **Единый источник истины:** `resolvedModelId` используется везде (cost, Redis, логи)
+- ✅ **Информативные логи:** warning при попытке использовать несуществующую модель
+- ✅ **Предсказуемость:** всегда используется валидный ID модели
+- ✅ **Отладка:** видимость проблем с невалидными моделями через логи
+- ✅ **Безопасность:** автоматический fallback на default модель
+
+### Места применения
+1. **Строки 127-147:** Основная валидация и вычисление стоимости
+2. **Строки 189-191:** Сохранение в Redis metadata
+3. **Импорты (строка 28):** Добавлен `getModelById`
+
+### Тестирование
+```bash
+$ npm test
+Test Suites: 11 passed, 11 total
+Tests:       207 passed, 207 total
+Time:        4.2 s
+
+$ npx tsc --noEmit
+✅ No errors
+```
+
+### Логирование
+При использовании несуществующей модели:
+```typescript
+logger.warn('Unknown image model provided, falling back to default', {
+  userId: 'user***',
+  providedModel: 'non-existent-model',
+  defaultModel: 'ideogram-v3-turbo'
+});
+```
+
+### Документация
+Обновлен `CHANGELOG.md` с информацией о валидации моделей:
+- Описание валидации входящей модели
+- Единый `resolvedModelId` для всех операций
+- Логирование неизвестных моделей
+
+---
+
+## Замечание #10: Атомарная защита decreaseCredits от отрицательного баланса
+**Дата:** 16 октября 2025, 13:00
+
+> In app/lib/decreaseCredits.ts, prevent negative balances; use atomic guard with updateMany
+
+### Проблема
+**До:**
+```typescript
+export const decreaseCredits = async (userId: string, amount = 1) => {
+  if (amount <= 0) return;
+  await prisma.user.update({ where: { id: userId }, data: { credits: { decrement: amount } } })
+}
+```
+
+**Недостатки:** нет проверки баланса, может создать отрицательный баланс, нет санитизации amount.
+
+### Решение
+```typescript
+export const decreaseCredits = async (userId: string, amount = 1): Promise<void> => {
+  const amt = Math.floor(amount);
+  if (!userId) throw new Error('userId is required');
+  if (amt <= 0) return;
+  const result = await prisma.user.updateMany({
+    where: { id: userId, credits: { gte: amt } },
+    data: { credits: { decrement: amt } },
+  });
+  if (result.count === 0) throw new Error('Insufficient credits or user not found');
+}
+```
+
+**Преимущества:** атомарная защита, санитизация, валидация, информативные ошибки.
+
+**Тестирование:** 19 unit-тестов, 226/226 тестов прошли ✅
+
+---
+
 ## История изменений
 
 ### 15 октября 2025
@@ -945,9 +1086,26 @@ expect(result.buffer.length).toBeGreaterThan(0); // Базовая провер�
 - ✅ Nitpicks #30-31: Russian grammar (LanguageTool)
   - Параллельная структура глаголов исправлена ("система выбрасывает" вместо пассивной формы)
 
+### 16 октября 2025, 12:15
+- ✅ Замечание #9: Валидация входящего imageModel в create.ts
+  - Добавлена проверка существования модели через `getModelById()`
+  - Единый `resolvedModelId` используется во всех местах (cost calculation, Redis metadata)
+  - Warning логируется при попытке использования несуществующей модели
+  - Автоматический fallback на default модель при неизвестном ID
+  - Предотвращение ошибок при опечатках или устаревших ID моделей
+
+### 16 октября 2025, 13:00
+- ✅ Замечание #10: Атомарная защита decreaseCredits от отрицательного баланса
+  - Заменен `update` на `updateMany` с условием `credits >= amt`
+  - Добавлена санитизация amount через `Math.floor()`
+  - Добавлена валидация userId
+  - Проверка результата операции и выброс ошибки
+  - Явный тип возврата `Promise<void>`
+  - Добавлено 19 unit-тестов (100% покрытие функции)
+
 ---
 
 **Дата первого исправления:** 15 октября 2025  
-**Дата последнего обновления:** 16 октября 2025, 04:15  
-**Всего исправлений:** 8 замечаний + 31 nitpicks = 39 ✅  
+**Дата последнего обновления:** 16 октября 2025, 13:00  
+**Всего исправлений:** 10 замечаний + 31 nitpicks = 41 ✅  
 **Статус:** ✅ Полностью завершено

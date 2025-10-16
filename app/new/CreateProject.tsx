@@ -120,26 +120,29 @@ const CreateProject = ({
                     <SelectValue placeholder="Выберите модель" />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-900 border-gray-700">
-                    {IMAGE_MODELS.map((model) => (
-                      <SelectItem
-                        key={model.id}
-                        value={model.id}
-                        className="text-white hover:bg-gray-800 cursor-pointer"
-                      >
-                          <div className="flex items-center gap-2 justify-between w-full">
-                            <div className="flex items-center gap-2">
-                              <span>{model.name}</span>
-                              {model.isPro && (
-                                <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
-                                  PRO
-                                </Badge>
-                              )}
-                              <span className="text-xs text-gray-400">({model.speed} • {model.quality})</span>
+                    {IMAGE_MODELS.map((model) => {
+                      const cost = computeModelCost(model.id);
+                      return (
+                        <SelectItem
+                          key={model.id}
+                          value={model.id}
+                          className="text-white hover:bg-gray-800 cursor-pointer"
+                        >
+                            <div className="flex items-center gap-2 justify-between w-full">
+                              <div className="flex items-center gap-2">
+                                <span>{model.name}</span>
+                                {model.isPro && (
+                                  <Badge variant="secondary" className="bg-gradient-to-r from-yellow-500 to-orange-500 text-xs">
+                                    PRO
+                                  </Badge>
+                                )}
+                                <span className="text-xs text-gray-400">({model.speed} • {model.quality})</span>
+                              </div>
+                              <div className="text-xs text-gray-300">{cost} credit{cost > 1 ? 's' : ''}</div>
                             </div>
-                            <div className="text-xs text-gray-300">{computeModelCost(model.id)} credit{computeModelCost(model.id) > 1 ? 's' : ''}</div>
-                          </div>
-                      </SelectItem>
-                    ))}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               ) : (
@@ -302,8 +305,7 @@ const CreateProject = ({
               </div>
             </DialogTitle>
             <DialogDescription className="text-gray-600 dark:text-gray-400">
-              You need credits to create videos. Check out our pricing plans
-              to continue creating amazing content.
+              You need {selectedModelCost} credit{selectedModelCost > 1 ? 's' : ''} for {selectedModelInfo.name}. You have {credits}.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

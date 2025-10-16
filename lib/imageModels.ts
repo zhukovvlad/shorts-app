@@ -191,7 +191,8 @@ export const getModelById = (modelId: string): ImageModel | undefined => {
 };
 
 // Коэффициенты стоимости по моделям (множитель от базовой стоимости в кредитах)
-export const MODEL_COEFFICIENTS: Record<string, number> = {
+// Заморожено для предотвращения случайных изменений в runtime
+export const MODEL_COEFFICIENTS: Record<string, number> = Object.freeze({
   "FLUX Schnell": 1.0,
   "DALL-E 2": 1.0,
   "Stable Diffusion XL": 1.2,
@@ -200,7 +201,19 @@ export const MODEL_COEFFICIENTS: Record<string, number> = {
   "FLUX Pro": 2.0,
   "DALL-E 3": 2.0,
   "DALL-E 3 HD": 2.5,
-};
+});
+
+// Альтернативная карта по ID для внутреннего использования (снижает связность с UI строками)
+export const MODEL_COEFFICIENTS_BY_ID: Record<string, number> = Object.freeze({
+  'flux-schnell': 1.0,
+  'dall-e-2': 1.0,
+  'sdxl': 1.2,
+  'ideogram-v3-turbo': 1.5,
+  'flux-dev': 1.5,
+  'flux-pro': 2.0,
+  'dall-e-3': 2.0,
+  'dall-e-3-hd': 2.5,
+});
 
 /**
  * Получить коэффициент для модели по id или имени.
@@ -209,9 +222,17 @@ export const MODEL_COEFFICIENTS: Record<string, number> = {
 export const getModelCoefficient = (modelIdOrName?: string): number => {
   if (!modelIdOrName) return 1.0;
 
-  // Попробуем найти модель по id
-  const byId = IMAGE_MODELS.find(m => m.id === modelIdOrName);
-  const modelName = byId ? byId.name : modelIdOrName;
+  // Приоритет: сначала пробуем по ID (более надежно), затем по имени
+  const trimmedInput = modelIdOrName.trim();
+  
+  // Проверяем по ID напрямую
+  if (MODEL_COEFFICIENTS_BY_ID[trimmedInput]) {
+    return MODEL_COEFFICIENTS_BY_ID[trimmedInput];
+  }
+
+  // Попробуем найти модель по id в IMAGE_MODELS и получить имя
+  const byId = IMAGE_MODELS.find(m => m.id === trimmedInput);
+  const modelName = (byId ? byId.name : trimmedInput).trim();
 
   const coeff = MODEL_COEFFICIENTS[modelName];
   return typeof coeff === 'number' && isFinite(coeff) && coeff > 0 ? coeff : 1.0;
