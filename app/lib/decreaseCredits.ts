@@ -5,7 +5,8 @@ import { prisma } from "./db"
  * 
  * @param userId - ID пользователя
  * @param amount - Количество кредитов для списания (по умолчанию 1)
- * @throws {Error} Если userId не указан
+ * @throws {Error} Если userId не указан или содержит только пробелы
+ * @throws {Error} Если amount не является конечным числом (NaN, Infinity)
  * @throws {Error} Если недостаточно кредитов или пользователь не найден
  * 
  * @example
@@ -15,13 +16,20 @@ import { prisma } from "./db"
  * ```
  */
 export const decreaseCredits = async (userId: string, amount = 1): Promise<void> => {
-	// Санитизация amount - округление до целого числа
-	const amt = Math.floor(amount);
-	
-	// Валидация входных параметров
-	if (!userId) {
-		throw new Error('userId is required');
+	// Валидация userId - trim и проверка на непустоту
+	const trimmedUserId = userId?.trim();
+	if (!trimmedUserId) {
+		throw new Error('userId is required and cannot be whitespace-only');
 	}
+	
+	// Валидация amount - проверка на конечность числа
+	const numericAmount = Number(amount);
+	if (!Number.isFinite(numericAmount)) {
+		throw new Error('amount must be a finite number');
+	}
+	
+	// Санитизация amount - округление до целого числа
+	const amt = Math.floor(numericAmount);
 	
 	// Ранний выход при невалидной сумме
 	if (amt <= 0) {
@@ -32,7 +40,7 @@ export const decreaseCredits = async (userId: string, amount = 1): Promise<void>
 	// updateMany с условием credits >= amt предотвращает отрицательный баланс
 	const result = await prisma.user.updateMany({
 		where: { 
-			id: userId, 
+			id: trimmedUserId, 
 			credits: { gte: amt } // Только если кредитов достаточно
 		},
 		data: { credits: { decrement: amt } },
