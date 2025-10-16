@@ -190,6 +190,43 @@ export const getModelById = (modelId: string): ImageModel | undefined => {
   return IMAGE_MODELS.find((model) => model.id === modelId);
 };
 
+// Коэффициенты стоимости по моделям (множитель от базовой стоимости в кредитах)
+export const MODEL_COEFFICIENTS: Record<string, number> = {
+  "FLUX Schnell": 1.0,
+  "DALL-E 2": 1.0,
+  "Stable Diffusion XL": 1.2,
+  "Ideogram V3 Turbo": 1.5,
+  "FLUX Dev": 1.5,
+  "FLUX Pro": 2.0,
+  "DALL-E 3": 2.0,
+  "DALL-E 3 HD": 2.5,
+};
+
+/**
+ * Получить коэффициент для модели по id или имени.
+ * Если модель не найдена, возвращает 1.0
+ */
+export const getModelCoefficient = (modelIdOrName?: string): number => {
+  if (!modelIdOrName) return 1.0;
+
+  // Попробуем найти модель по id
+  const byId = IMAGE_MODELS.find(m => m.id === modelIdOrName);
+  const modelName = byId ? byId.name : modelIdOrName;
+
+  const coeff = MODEL_COEFFICIENTS[modelName];
+  return typeof coeff === 'number' && isFinite(coeff) && coeff > 0 ? coeff : 1.0;
+};
+
+/**
+ * Вычислить стоимость в кредитах для выбранной модели.
+ * Базовая стоимость по умолчанию = 1 кредит.
+ * Результат округляется вверх до ближайшего целого (чтобы не допустить дробных кредитов).
+ */
+export const computeModelCost = (modelIdOrName?: string, baseCost = 1): number => {
+  const coeff = getModelCoefficient(modelIdOrName);
+  return Math.max(1, Math.ceil(baseCost * coeff));
+};
+
 /**
  * Возвращает модель по умолчанию для генерации изображений
  * Гарантированно возвращает валидную ImageModel
