@@ -110,6 +110,28 @@ describe('Model Coefficients System', () => {
       });
     });
 
+    describe('case and whitespace robustness', () => {
+      it('should handle trailing whitespace in model ID', () => {
+        expect(getModelCoefficient('flux-schnell ')).toBe(1.0);
+        expect(getModelCoefficient(' flux-dev')).toBe(1.5);
+        expect(getModelCoefficient('  sdxl  ')).toBe(1.2);
+      });
+
+      it('should handle trailing whitespace in model name', () => {
+        expect(getModelCoefficient('FLUX Schnell ')).toBe(1.0);
+        expect(getModelCoefficient(' DALL-E 3')).toBe(2.0);
+        expect(getModelCoefficient('  FLUX Pro  ')).toBe(2.0);
+      });
+
+      it('should NOT match different casing (case-sensitive by design)', () => {
+        // Наши ID и имена регистрозависимы, это ожидаемое поведение
+        expect(getModelCoefficient('FLUX-SCHNELL')).toBe(1.0); // fallback
+        expect(getModelCoefficient('flux schnell')).toBe(1.0); // fallback
+        expect(getModelCoefficient('dall-e-2')).toBe(1.0); // correct
+        expect(getModelCoefficient('DALL-E-2')).toBe(1.0); // fallback
+      });
+    });
+
     describe('all IMAGE_MODELS should have valid coefficients', () => {
       it('should return valid coefficient for each model in IMAGE_MODELS', () => {
         IMAGE_MODELS.forEach(model => {
