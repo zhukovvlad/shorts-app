@@ -175,7 +175,7 @@ OPENAI_API_KEY="sk-..."
 
 # ==================== Replicate ====================
 # Для генерации изображений (Stable Diffusion, FLUX)
-REPLICATE_API_TOKEN="r8_..."
+REPLICATE_API_KEY="r8_..."
 
 # ==================== ElevenLabs ====================
 # Для синтеза речи

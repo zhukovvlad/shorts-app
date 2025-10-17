@@ -21,10 +21,8 @@ const s3Client = new S3Client({
 
 // Поддержка обеих переменных окружения для обратной совместимости
 // AWS_S3_BUCKET_NAME (предпочтительно) или AWS_BUCKET_NAME (legacy)
+// Валидация перенесена в runtime (внутрь функций) для избежания import-time crashes
 const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
-if (!bucketName) {
-  throw new Error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
-}
 
 /**
  * Функция для извлечения URL из различных форматов вывода Replicate моделей
@@ -98,11 +96,31 @@ const getFileExtensionFromContentType = (contentType: string): string => {
 };
 
 /**
+ * Проверяет, является ли сообщение об ошибке связанной с модерацией контента
+ * Выполняет case-insensitive проверку на ключевые фразы OpenAI safety system
+ * @param errorMessage - Сообщение об ошибке для проверки
+ * @returns true если ошибка связана с модерацией, false в противном случае
+ */
+const isSafetyError = (errorMessage: string): boolean => {
+  const lower = errorMessage.toLowerCase();
+  return lower.includes('safety system') || 
+         lower.includes('content policy') ||
+         lower.includes('rejected as a result');
+};
+
+/**
  * Генерация изображения через OpenAI DALL-E
  */
-const processImageWithOpenAI = async (prompt: string, modelId: string) => {
+const processImageWithOpenAI = async (prompt: string, modelId: string): Promise<string> => {
   try {
-    // Проверяем наличие API ключа OpenAI
+    // Runtime валидация S3 bucket configuration
+    if (!bucketName) {
+      const errorMsg = 'S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.';
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    // Валидация API ключа
     if (!process.env.OPENAI_API_KEY) {
       const errorMsg = 'OPENAI_API_KEY is not configured. Please add your OpenAI API key to environment variables to use DALL-E models. You can obtain an API key at https://platform.openai.com/api-keys';
       logger.error(errorMsg);
@@ -202,13 +220,7 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     // Проверяем, является ли это ошибкой модерации контента
-    // Нормализуем к нижнему регистру для case-insensitive проверки
-    const lower = errorMessage.toLowerCase();
-    const isSafetyError = lower.includes('safety system') || 
-                         lower.includes('content policy') ||
-                         lower.includes('rejected as a result');
-    
-    if (isSafetyError) {
+    if (isSafetyError(errorMessage)) {
       logger.warn("Image rejected by OpenAI safety system", {
         error: errorMessage,
         promptPreview: prompt.substring(0, 150)
@@ -240,6 +252,13 @@ const processImage = async (img: string, modelId?: string) => {
     // Для Replicate моделей используем существующую логику
     if (!model.replicateModel) {
       throw new Error(`Model ${model.id} is missing replicateModel configuration`);
+    }
+
+    // Runtime валидация S3 bucket configuration для Replicate пути
+    if (!bucketName) {
+      const errorMsg = 'S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.';
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     logger.info(`Processing image with Replicate model: ${model.name} (${model.id})`);
@@ -403,6 +422,10 @@ export const generateImages = async (videoId: string) => {
       let attempt = 0;
       while (attempt < maxRetries) {
         attempt += 1;
+        // Добавляем timeout (30s) для предотвращения зависания
+        const abortController = new AbortController();
+        const timeout = setTimeout(() => abortController.abort(), 30_000);
+        
         try {
           const chat = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -412,6 +435,8 @@ export const generateImages = async (videoId: string) => {
             ],
             temperature: 0.2,
             max_tokens: 200
+          }, {
+            signal: abortController.signal
           });
 
           const sanitized = chat.choices?.[0]?.message?.content?.trim();
@@ -423,6 +448,8 @@ export const generateImages = async (videoId: string) => {
           const msg = err instanceof Error ? err.message : String(err);
           logger.warn('Prompt sanitization attempt failed', { attempt, error: msg });
           // на ошибки модерации/таймауты — сделаем retry
+        } finally {
+          clearTimeout(timeout);
         }
       }
 
@@ -431,18 +458,14 @@ export const generateImages = async (videoId: string) => {
     };
 
     // Обрабатываем каждое изображение отдельно с попытками исправления модерации
-    const imagePromises = video.imagePrompts.map(async (img, index) => {
+    // Используем ограниченный параллелизм для избежания rate limits (максимум 3 одновременно)
+    const processImageWithRetry = async (img: string, index: number) => {
       try {
         return await processImage(img, modelId);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        // Нормализуем к нижнему регистру для case-insensitive проверки
-        const lower = errorMessage.toLowerCase();
-        const isSafetyError = lower.includes('safety system') || 
-                             lower.includes('content policy') ||
-                             lower.includes('rejected as a result');
-
-        if (!isSafetyError) {
+        
+        if (!isSafetyError(errorMessage)) {
           logger.error(`Failed to generate image ${index + 1}`, {
             videoId,
             error: errorMessage
@@ -471,12 +494,9 @@ export const generateImages = async (videoId: string) => {
             return result;
           } catch (retryErr) {
             const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-            // Нормализуем к нижнему регистру для case-insensitive проверки
-            const retryLower = retryMsg.toLowerCase();
-            const retryIsSafety = retryLower.includes('safety system') || retryLower.includes('content policy') || retryLower.includes('rejected as a result');
             logger.warn(`Sanitized prompt attempt ${attempt} failed`, { videoId, attempt, retryError: retryMsg });
             // Если после санитизации всё ещё модерация — продолжаем цикл
-            if (!retryIsSafety) {
+            if (!isSafetyError(retryMsg)) {
               // техническая ошибка — пробрасываем
               throw retryErr;
             }
@@ -487,9 +507,19 @@ export const generateImages = async (videoId: string) => {
         logger.warn(`All sanitization retries failed for image ${index + 1}, skipping image`, { videoId, index });
         return null;
       }
-    });
+    };
 
-    const imageResults = await Promise.all(imagePromises);
+    // Ограничиваем параллелизм: обрабатываем не более 3 изображений одновременно
+    const CONCURRENCY_LIMIT = 3;
+    const imageResults: (string | null)[] = [];
+    
+    for (let i = 0; i < video.imagePrompts.length; i += CONCURRENCY_LIMIT) {
+      const chunk = video.imagePrompts.slice(i, i + CONCURRENCY_LIMIT);
+      const chunkResults = await Promise.all(
+        chunk.map((img, chunkIndex) => processImageWithRetry(img, i + chunkIndex))
+      );
+      imageResults.push(...chunkResults);
+    }
     
     // Фильтруем null значения (отклоненные изображения)
     const imageLinks = imageResults.filter((link): link is string => link !== null);
