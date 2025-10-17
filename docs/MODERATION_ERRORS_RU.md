@@ -2,7 +2,7 @@
 
 ## Что это за ошибка?
 
-```
+```text
 400 Your request was rejected as a result of our safety system.
 ```
 
@@ -20,8 +20,8 @@ OpenAI анализирует каждый промпт на генерацию 
 
 ### 🤖 Автоматическая санитизация промптов
 
-1. **Обнаруживает модерационную ошибку** → запускает цикл санитизации
-2. **Переписывает промпт через OpenAI** → вызов `gpt-4o-mini` для создания безопасной версии
+1. **Обнаруживает модерационную ошибку** и запускает цикл санитизации
+2. **Переписывает промпт через OpenAI** через вызов `gpt-4o-mini` для создания безопасной версии
 3. **Повторяет генерацию изображения** → пытается с исправленным промптом
 4. **Делает до 3 попыток** → каждая попытка: санитизация → повторная генерация
 5. **Fallback: пропуск изображения** → только если все 3 попытки неудачны
@@ -36,7 +36,7 @@ OpenAI анализирует каждый промпт на генерацию 
 
 ### 🆕 Новый сценарий: Успешная санитизация (v1.7.2)
 
-```
+```log
 [INFO] Attempting to sanitize prompt 
        {"videoId":"xxx","attempt":1,"originalPrompt":"..."}
 
@@ -56,7 +56,7 @@ OpenAI анализирует каждый промпт на генерацию 
 
 ### ✅ Хороший кейс (1 отклонено, 4 успешно)
 
-```
+```log
 [WARN] Image 2 rejected by safety system, using placeholder 
        {"videoId":"xxx","promptPreview":"...","error":"400 Your request was rejected..."}
 
@@ -70,7 +70,7 @@ OpenAI анализирует каждый промпт на генерацию 
 
 ### ⚠️ Проблемный кейс (3 отклонено, 2 успешно)
 
-```
+```log
 [WARN] Image 1 rejected by safety system...
 [WARN] Image 3 rejected by safety system...
 [WARN] Image 5 rejected by safety system...
@@ -85,7 +85,7 @@ OpenAI анализирует каждый промпт на генерацию 
 
 ### 🚨 Критический кейс (все 5 отклонено)
 
-```
+```log
 [WARN] Image 1 rejected by safety system...
 [WARN] Image 2 rejected by safety system...
 [WARN] Image 3 rejected by safety system...
@@ -157,7 +157,7 @@ SELECT imagePrompts FROM "Video" WHERE videoId = 'xxx';
 
 1. **Проверить тему видео** - возможно пользователь запросил неподходящую тему
 2. **Проверить генерацию промптов** - возможно баг в `generateScript`
-3. **Временный workaround** - использовать другую модель (Stable Diffusion вместо DALL-E)
+3. **Временный обходной путь** - использовать другую модель (Stable Diffusion вместо DALL-E)
 
 ## 🎯 Как улучшить промпты
 

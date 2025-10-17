@@ -6,7 +6,7 @@ OpenAI (и другие провайдеры AI) имеют системы мо�
 
 ### Типичная ошибка
 
-```
+```text
 400 Your request was rejected as a result of our safety system.
 ```
 
@@ -30,9 +30,10 @@ OpenAI (и другие провайдеры AI) имеют системы мо�
 ### Типы ошибок модерации
 
 ```typescript
-const isSafetyError = errorMessage.includes('safety system') || 
-                     errorMessage.includes('content policy') ||
-                     errorMessage.includes('rejected as a result');
+const msg = errorMessage.toLowerCase();
+const isSafetyError = msg.includes('safety system') ||
+                      msg.includes('content policy') ||
+                      msg.includes('rejected as a result');
 ```
 
 ### Поток санитизации (NEW v1.7.2)
@@ -70,11 +71,20 @@ if (imageLinks.length === 0) {
 
 ### Ошибка модерации (WARN)
 
+**При обнаружении модерационной ошибки (v1.7.2):**
 ```typescript
-logger.warn(`Image ${index + 1} rejected by safety system, using placeholder`, {
+logger.warn(`Image ${index + 1} rejected by safety system - attempting sanitization`, {
   videoId,
-  promptPreview: img.substring(0, 100),
+  promptPreview: img.substring(0, 120),
   error: errorMessage
+});
+```
+
+**После неудачных попыток санитизации (v1.7.2):**
+```typescript
+logger.warn(`All sanitization retries failed for image ${index + 1}, skipping image`, {
+  videoId,
+  index
 });
 ```
 
@@ -109,12 +119,35 @@ logger.info("Generated image links", {
 [ERROR] ❌ Job failed {"jobId":"17", "error":"400 Your request was rejected..."}
 ```
 
-### После исправления
+### После исправления (v1.7.2 с санитизацией)
 
 ```
-[WARN] Image 1 rejected by safety system, using placeholder {"videoId":"...", "promptPreview":"...", "error":"400 Your request was rejected..."}
+[WARN] Image 1 rejected by safety system - attempting sanitization {"videoId":"...", "promptPreview":"...", "error":"400 Your request was rejected..."}
+[INFO] Attempting to sanitize prompt {"attempt":1, "originalPrompt":"..."}
+[WARN] Sanitized prompt attempt 1 failed {"videoId":"...", "attempt":1, "retryError":"..."}
+[WARN] All sanitization retries failed for image 1, skipping image {"videoId":"...", "index":0}
 [INFO] Generated image links {"videoId":"...", "count":4, "total":5, "rejectedCount":1}
 [INFO] ✅ Job completed successfully
+```
+
+## Реализованные улучшения (v1.7.2)
+
+### ✅ Автоматическая санитизация промптов
+
+**Реализовано в v1.7.2** - Попытка автоматически "смягчить" промпт через OpenAI:
+
+```typescript
+if (isSafetyError) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const sanitized = await sanitizePromptWithOpenAI(img, 1);
+    if (sanitized) {
+      const result = await processImage(sanitized, modelId);
+      if (result) return result;
+    }
+  }
+  // Fallback: пропуск изображения
+  return null;
+}
 ```
 
 ## Будущие улучшения
@@ -124,23 +157,12 @@ logger.info("Generated image links", {
 Вместо `null` можно генерировать нейтральное изображение:
 
 ```typescript
-if (isSafetyError) {
+if (allSanitizationsFailed) {
   return await generatePlaceholderImage(index);
 }
 ```
 
-### 2. Модификация промпта
-
-Попытка автоматически "смягчить" промпт:
-
-```typescript
-if (isSafetyError && retryCount < 1) {
-  const sanitizedPrompt = sanitizePrompt(img);
-  return await processImage(sanitizedPrompt, modelId);
-}
-```
-
-### 3. Уведомление пользователя
+### 2. Уведомление пользователя
 
 Показывать в UI, что некоторые изображения были заменены:
 
@@ -149,7 +171,7 @@ metadata.warningsCount = rejectedCount;
 metadata.warnings = ['Some images were moderated'];
 ```
 
-### 4. Альтернативный провайдер
+### 3. Альтернативный провайдер
 
 Fallback на другую модель/провайдер:
 

@@ -10,7 +10,7 @@
 
 ### Что происходило раньше (v1.7.0)
 
-```
+```text
 Пользователь создает видео с 5 изображениями
     ↓
 OpenAI генерирует 4 изображения успешно
@@ -25,7 +25,7 @@ Promise.all() выбрасывает ошибку
 ```
 
 ### Логи до исправления
-```
+```text
 [ERROR] Error processing image from OpenAI {"error":"400 Your request was rejected..."}
 [ERROR] Error generating images {"error":"400 Your request was rejected..."}
 [ERROR] Error processing video {"videoId":"...","error":"400 Your request was rejected..."}
@@ -50,7 +50,7 @@ Promise.all() выбрасывает ошибку
 
 ### Что происходит теперь (v1.7.2)
 
-```
+```text
 Пользователь создает видео с 5 изображениями
     ↓
 OpenAI генерирует изображения параллельно:
@@ -77,10 +77,11 @@ OpenAI генерирует изображения параллельно:
 ```
 
 ### Логи после исправления
-```
-[WARN] Image 2 rejected by safety system, using placeholder 
+```text
+[WARN] Image 2 rejected by safety system - attempting sanitization
        {"videoId":"...","promptPreview":"...","error":"400 Your request was rejected..."}
-[INFO] Generated image links {"videoId":"...","count":4,"total":5,"rejectedCount":1}
+[INFO] Sanitization succeeded on attempt 1 {"videoId":"...","index":1}
+[INFO] Generated image links {"videoId":"...","count":5,"total":5,"rejectedCount":0}
 [INFO] Images successfully generated and uploaded
 [INFO] ✅ Job completed successfully
 ```
@@ -290,7 +291,7 @@ if (rejectedCount > 0) {
 
 ---
 
-**Версия:** 1.7.1  
-**Дата:** 2025-10-16  
+**Версия:** 1.7.2  
+**Дата:** 2025-10-17  
 **Автор:** GitHub Copilot  
 **Статус:** ✅ Готово к деплою

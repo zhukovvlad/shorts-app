@@ -17,7 +17,7 @@
   - Unit-тесты для валидации логики обнаружения ошибок модерации
   - Документация: `docs/CONTENT_MODERATION_HANDLING.md`
   
-  **Новая функция:**
+  **Новая внутренняя функция** (не экспортируется, используется внутри `app/actions/image.ts`):
   ```typescript
   sanitizePromptWithOpenAI(originalPrompt: string, maxRetries = 3): Promise<string | null>
   ```
