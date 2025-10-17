@@ -43,7 +43,6 @@ export const useVideoProgress = (videoId: string | null) => {
         
         // Логируем данные для отладки (только в development)
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
           console.log('📊 Progress:', data.status, 
             data.completedSteps ? `(${Object.values(data.completedSteps).filter(Boolean).length}/5 completed)` : '(no checkpoint)');
         }
@@ -61,7 +60,6 @@ export const useVideoProgress = (videoId: string | null) => {
             clearInterval(interval);
             interval = setInterval(checkProgress, currentPollInterval);
             if (process.env.NODE_ENV === 'development') {
-              // eslint-disable-next-line no-console
               console.log(`🐌 Polling замедлен до ${currentPollInterval/1000}s из-за отсутствия изменений`);
             }
           }
@@ -73,7 +71,6 @@ export const useVideoProgress = (videoId: string | null) => {
             clearInterval(interval);
             interval = setInterval(checkProgress, currentPollInterval);
             if (process.env.NODE_ENV === 'development') {
-              // eslint-disable-next-line no-console
               console.log(`⚡ Polling ускорен до ${currentPollInterval/1000}s из-за изменений`);
             }
           }
@@ -128,7 +125,6 @@ export const useVideoProgress = (videoId: string | null) => {
         // Если status='retrying' - продолжаем polling
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          // eslint-disable-next-line no-console
           console.error('Failed to check progress:', error);
         }
         // В production ошибки сети не логируем в консоль, но можно показать toast если нужно

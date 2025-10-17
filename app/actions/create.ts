@@ -26,6 +26,7 @@ import { videoQueue } from "../lib/queue"
 import { logger } from "@/lib/logger"
 import { revalidateTag } from "next/cache"
 import { computeModelCost, getDefaultModel, getModelById } from '@/lib/imageModels'
+import { PROMPT_MIN_LENGTH, PROMPT_MAX_LENGTH } from "@/app/constants/video"
 
 /**
  * Валидирует и очищает входной промпт для создания видео
@@ -49,12 +50,12 @@ const validatePrompt = (prompt: string): string => {
   }
 
   const trimmedPrompt = prompt.trim()
-  if (trimmedPrompt.length < 10) {
-    throw new Error('Prompt must be at least 10 characters long')
+  if (trimmedPrompt.length < PROMPT_MIN_LENGTH) {
+    throw new Error(`Prompt must be at least ${PROMPT_MIN_LENGTH} characters long`)
   }
 
-  if (trimmedPrompt.length > 500) {
-    throw new Error('Prompt must be at most 500 characters long')
+  if (trimmedPrompt.length > PROMPT_MAX_LENGTH) {
+    throw new Error(`Prompt must be at most ${PROMPT_MAX_LENGTH} characters long`)
   }
 
   return trimmedPrompt

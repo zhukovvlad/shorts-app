@@ -23,7 +23,7 @@ const isAllowedTag = (t: string): t is AllowedTag =>
 export async function POST(request: NextRequest) {
   try {
     // Безопасный парсинг JSON
-    let body: any;
+    let body: { tag?: unknown; secret?: unknown };
     try {
       body = await request.json();
     } catch {

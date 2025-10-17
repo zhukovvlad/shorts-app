@@ -47,9 +47,8 @@ export const generateAudio = async (videoId: string) => {
       }
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const audioStream = Readable.fromWeb(
-      webStream as any
+      webStream as unknown as Parameters<typeof Readable.fromWeb>[0]
     );
 
     const chunks: Buffer[] = [];
