@@ -4,7 +4,9 @@
 
 Все замечания из code review успешно исправлены и улучшены.
 
-**Статус:** 28 nitpicks исправлено ✅ (13 ранее + 15 новых)
+**Статус:** 62 nitpicks исправлено ✅ (13 ранее + 45 новых + 4 image.ts)
+
+**Последняя обновление:** Nitpicks #23-26 - Runtime validation, helper extraction, timeout, bounded parallelism в image.ts
 
 ---
 
@@ -1053,8 +1055,12 @@ logger.error('Failed to extract valid URL from model output', {
 - ✍️ Формулировки логов: 4 места
 - 📖 Документация API: 1 функция
 - 🛡️ Log bloat protection: 1 место
-- 🔄 DB retry resilience: 1 операция
+- 🔄 DB retry resilience: 2 операции (image.ts + audio.ts)
 - 🇷🇺 Русская грамматика: 3 исправления
+- 🚀 Runtime validation: 3 места (audio.ts + 2x image.ts)
+- 🧹 Code deduplication: 1 helper function (isSafetyError)
+- ⏱️ Timeout protection: 1 место (sanitizePromptWithOpenAI)
+- 🎯 Bounded parallelism: 1 место (Promise.all chunking)
 
 **Верификация:**
 ```bash
@@ -1067,6 +1073,260 @@ npm test -- --passWithNoTests
 
 ---
 
-**ИТОГО ВСЕХ NITPICKS:** 42 (ранее) + 15 (новые) = **57 исправлено** ✅
+## 22. ✅ Runtime Validation + DB Retry в audio.ts
+
+### Замечание
+> Import-time throw может сломать несвязанные code paths/tests когда env vars отсутствуют. Валидация S3 bucket должна быть внутри функции. DB update должен использовать withRetry для паритета с image.ts.
+
+### Решение
+
+**1. Импорт withRetry:**
+```diff
+-import { prisma } from "../lib/db";
++import { prisma, withRetry } from "../lib/db";
+```
+
+**2. Runtime validation (вместо import-time):**
+```diff
+ const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
+-if (!bucketName) {
+-  throw new Error('S3 bucket name is not configured...');
+-}
+
+ export const generateAudio = async (videoId: string) => {
+   try {
++    if (!bucketName) {
++      logger.error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
++      return undefined;
++    }
+```
+
+**3. DB update с withRetry:**
+```diff
+-await prisma.video.update({
+-  where: { videoId },
+-  data: { audio: s3Url },
+-});
++await withRetry(() =>
++  prisma.video.update({
++    where: { videoId },
++    data: { audio: s3Url },
++  })
++);
+```
+
+### Преимущества
+- ✅ **Нет import-time crash:** Модуль загружается даже без S3 config
+- ✅ **Тесты стабильны:** Не падают из-за missing env var
+- ✅ **Graceful fail:** Возвращает undefined + логирование
+- ✅ **DB retry:** До 3 попыток при transient failures
+- ✅ **Паритет:** Единый подход с image.ts
+
+**Файлы изменены:** `app/actions/audio.ts`
+
+---
+
+## 23. ✅ Runtime Validation для S3 Bucket в image.ts
+
+### Замечание
+> Import-time throw для bucketName может сломать несвязанные tests/serverless paths когда env vars отсутствуют. Валидация должна быть перенесена в runtime (внутрь функций).
+
+### Решение
+
+**1. Удалён import-time throw:**
+```diff
+ const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
+-if (!bucketName) {
+-  throw new Error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
+-}
++// Валидация перенесена в runtime (внутрь функций) для избежания import-time crashes
+```
+
+**2. Runtime validation в processImageWithOpenAI:**
+```typescript
+// Runtime валидация S3 bucket configuration
+if (!bucketName) {
+  const errorMsg = 'S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.';
+  logger.error(errorMsg);
+  throw new Error(errorMsg);
+}
+```
+
+**3. Runtime validation в processImage (Replicate path):**
+```typescript
+// Runtime валидация S3 bucket configuration для Replicate пути
+if (!bucketName) {
+  const errorMsg = 'S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.';
+  logger.error(errorMsg);
+  throw new Error(errorMsg);
+}
+```
+
+### Преимущества
+- ✅ **Нет import-time crash:** Модуль загружается даже без S3 config
+- ✅ **Тесты стабильны:** Не падают при missing env var
+- ✅ **Лучшая диагностика:** Логирование перед ошибкой
+- ✅ **Покрытие обоих путей:** OpenAI и Replicate валидированы
+- ✅ **Паритет:** Единый подход с audio.ts
+
+**Файлы изменены:** `app/actions/image.ts`
+
+---
+
+## 24. ✅ Дедупликация isSafetyError в Helper Function
+
+### Замечание
+> Модерационный чек дублируется в 3 местах (lines 212, 453, 488). Стоит вынести в helper function для уменьшения дублирования и улучшения тестируемости.
+
+### Решение
+
+**1. Создана helper function:**
+```typescript
+/**
+ * Проверяет, является ли сообщение об ошибке связанной с модерацией контента
+ * Выполняет case-insensitive проверку на ключевые фразы OpenAI safety system
+ * @param errorMessage - Сообщение об ошибке для проверки
+ * @returns true если ошибка связана с модерацией, false в противном случае
+ */
+const isSafetyError = (errorMessage: string): boolean => {
+  const lower = errorMessage.toLowerCase();
+  return lower.includes('safety system') || 
+         lower.includes('content policy') ||
+         lower.includes('rejected as a result');
+};
+```
+
+**2. Заменены все 3 дублирования:**
+
+```diff
+-// Нормализуем к нижнему регистру для case-insensitive проверки
+-const lower = errorMessage.toLowerCase();
+-const isSafetyError = lower.includes('safety system') || 
+-                     lower.includes('content policy') ||
+-                     lower.includes('rejected as a result');
+-
+-if (isSafetyError) {
++if (isSafetyError(errorMessage)) {
+```
+
+**3. Аналогично для всех трёх мест:** processImageWithOpenAI, generateImages loop, retry после sanitization.
+
+### Преимущества
+- ✅ **DRY принцип:** Логика в одном месте
+- ✅ **Тестируемость:** Можно unit-тестировать отдельно
+- ✅ **Консистентность:** Одинаковая логика везде
+- ✅ **Maintenance:** Легко обновить все места сразу
+- ✅ **Читаемость:** Код более декларативный
+
+**Файлы изменены:** `app/actions/image.ts`
+
+---
+
+## 25. ✅ Timeout для sanitizePromptWithOpenAI
+
+### Замечание
+> OpenAI API call в sanitizePromptWithOpenAI может зависать indefinitely. Нужен timeout (AbortController) для защиты от долгих запросов.
+
+### Решение
+
+**Добавлен AbortController с 30s timeout:**
+```diff
+ while (attempt < maxRetries) {
+   attempt += 1;
++  // Добавляем timeout (30s) для предотвращения зависания
++  const abortController = new AbortController();
++  const timeout = setTimeout(() => abortController.abort(), 30_000);
++  
+   try {
+     const chat = await openai.chat.completions.create({
+       model: 'gpt-4o-mini',
+       messages: [
+         { role: 'system', content: systemInstruction },
+         { role: 'user', content: originalPrompt }
+       ],
+       temperature: 0.2,
+       max_tokens: 200
+-    });
++    }, {
++      signal: abortController.signal
++    });
+     
+     const sanitized = chat.choices?.[0]?.message?.content?.trim();
+     if (sanitized && sanitized.length > 0) {
+       logger.info('Sanitized prompt via OpenAI', { attempt, preview: sanitized.substring(0, 120) });
+       return sanitized;
+     }
+   } catch (err) {
+     const msg = err instanceof Error ? err.message : String(err);
+     logger.warn('Prompt sanitization attempt failed', { attempt, error: msg });
+     // на ошибки модерации/таймауты — сделаем retry
++  } finally {
++    clearTimeout(timeout);
+   }
+ }
+```
+
+### Преимущества
+- ✅ **Защита от зависаний:** 30s timeout для каждого запроса
+- ✅ **Graceful handling:** Timeout обрабатывается как retryable error
+- ✅ **Resource cleanup:** clearTimeout в finally
+- ✅ **Паритет:** Аналогичный подход с другими fetch/API calls
+- ✅ **Production-ready:** Предотвращает бесконечные ожидания
+
+**Файлы изменены:** `app/actions/image.ts`
+
+---
+
+## 26. ✅ Bounded Parallelism для Promise.all
+
+### Замечание
+> Promise.all обрабатывает все изображения параллельно без ограничений. Может вызвать rate limits у OpenAI/Replicate. Нужно ограничить параллелизм до 3-4 concurrent requests.
+
+### Решение
+
+**1. Извлечена логика обработки в отдельную функцию:**
+```typescript
+const processImageWithRetry = async (img: string, index: number) => {
+  try {
+    return await processImage(img, modelId);
+  } catch (error) {
+    // ... existing moderation retry logic ...
+  }
+};
+```
+
+**2. Реализован chunked parallelism:**
+```typescript
+// Ограничиваем параллелизм: обрабатываем не более 3 изображений одновременно
+const CONCURRENCY_LIMIT = 3;
+const imageResults: (string | null)[] = [];
+
+for (let i = 0; i < video.imagePrompts.length; i += CONCURRENCY_LIMIT) {
+  const chunk = video.imagePrompts.slice(i, i + CONCURRENCY_LIMIT);
+  const chunkResults = await Promise.all(
+    chunk.map((img, chunkIndex) => processImageWithRetry(img, i + chunkIndex))
+  );
+  imageResults.push(...chunkResults);
+}
+```
+
+### Преимущества
+- ✅ **Rate limit защита:** Максимум 3 concurrent requests
+- ✅ **Простая реализация:** Нет внешних зависимостей (p-limit)
+- ✅ **Предсказуемость:** Известный лимит нагрузки
+- ✅ **Сохранение порядка:** Результаты в правильном порядке
+- ✅ **Низкая латентность:** Всё ещё параллельная обработка в пределах chunk
+
+**Альтернативы рассмотрены:**
+- `p-limit` library - не установлена, избегаем новых зависимостей
+- Semaphore pattern - более сложный для данного случая
+- Sequential processing - слишком медленный
+
+**Файлы изменены:** `app/actions/image.ts`
+
+---
+
+**ИТОГО ВСЕХ NITPICKS:** 42 (ранее) + 16 (audio) + 4 (image) = **62 исправлено** ✅
 
 Код готов к production! 🚀
+

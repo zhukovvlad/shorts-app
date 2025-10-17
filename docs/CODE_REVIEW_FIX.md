@@ -1777,11 +1777,30 @@ AWS_S3_BUCKET_NAME="your-bucket-name"  # Предпочтительно (AWS_BUC
   - Файлы: 8 документов обновлено, 2 улучшения кода
   - Детали: см. `docs/NITPICK_FIXES.md` секции #14-21
 
+### 17 октября 2025, 11:45
+- ✅ Nitpick #58: Runtime Validation + DB Retry в audio.ts
+  - **Import-time → Runtime validation:** Перенос проверки S3 bucket внутрь функции
+  - **Graceful degradation:** return undefined + logger.error вместо throw
+  - **DB retry:** withRetry для prisma.video.update (паритет с image.ts)
+  - **Стабильность тестов:** Модуль загружается даже без env var
+  - Файл: `app/actions/audio.ts` (3 изменения)
+  - Детали: см. `docs/NITPICK_FIXES.md` секция #22
+
+### 17 октября 2025, 12:00
+- ✅ Nitpicks #59-62: Image.ts Production Hardening (4 новых исправления)
+  - **Nitpick #59:** Runtime validation для S3 bucket (2 code paths: OpenAI + Replicate)
+  - **Nitpick #60:** Дедупликация `isSafetyError` в helper function (DRY principle)
+  - **Nitpick #61:** Timeout (30s) для `sanitizePromptWithOpenAI` (AbortController)
+  - **Nitpick #62:** Bounded parallelism для Promise.all (max 3 concurrent, rate limit защита)
+  - Файл: `app/actions/image.ts` (4 улучшения)
+  - Детали: см. `docs/NITPICK_FIXES.md` секции #23-26
+
 ---
 
 **Дата первого исправления:** 15 октября 2025  
-**Дата последнего обновления:** 17 октября 2025, 11:30  
-**Всего исправлений:** 19 замечаний (2 дубликата) + 57 nitpicks = **76 ✅**  
+**Дата последнего обновления:** 17 октября 2025, 12:00  
+**Всего исправлений:** 19 замечаний (2 дубликата) + 62 nitpicks = **81 ✅**  
 **Статус:** ✅ Полностью завершено
 
 **Подробная документация nitpicks:** `docs/NITPICK_FIXES.md`
+
