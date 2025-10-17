@@ -190,9 +190,24 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
     logger.info("OpenAI image uploaded to S3", { fileName, contentType });
     return s3Url;
   } catch (error) {
-    logger.error("Error processing image from OpenAI", {
-      error: error instanceof Error ? error.message : String(error)
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Проверяем, является ли это ошибкой модерации контента
+    const isSafetyError = errorMessage.includes('safety system') || 
+                         errorMessage.includes('content policy') ||
+                         errorMessage.includes('rejected as a result');
+    
+    if (isSafetyError) {
+      logger.warn("Image rejected by OpenAI safety system", {
+        error: errorMessage,
+        promptPreview: prompt.substring(0, 150)
+      });
+    } else {
+      logger.error("Error processing image from OpenAI", {
+        error: errorMessage
+      });
+    }
+    
     throw error;
   }
 };
@@ -355,11 +370,123 @@ export const generateImages = async (videoId: string) => {
       });
     }
 
-    const imagePromises = video.imagePrompts.map((img) => processImage(img, modelId));
+    // Вспомогательная функция: пытаемся переписать промпт через OpenAI так, чтобы
+    // он соответствовал политике безопасности, но сохранял исходный смысл.
+    const sanitizePromptWithOpenAI = async (originalPrompt: string, maxRetries = 3) => {
+      if (!process.env.OPENAI_API_KEY) {
+        logger.warn('OPENAI_API_KEY not available for prompt sanitization');
+        return null;
+      }
 
-    const imageLinks = await Promise.all(imagePromises);
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const systemInstruction = `You are a helpful assistant that rewrites image-generation prompts to conform with content safety policies. Rewrite the user's prompt to remove or soften any potentially disallowed content (violence, sexual content, hate, graphic descriptions, real-person or public figure likenesses) but preserve the original intent, composition, style, and important adjectives when possible. Return only the rewritten prompt text and nothing else.`;
+
+      let attempt = 0;
+      while (attempt < maxRetries) {
+        attempt += 1;
+        try {
+          const chat = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: originalPrompt }
+            ],
+            temperature: 0.2,
+            max_tokens: 200
+          });
+
+          const sanitized = chat.choices?.[0]?.message?.content?.trim();
+          if (sanitized && sanitized.length > 0) {
+            logger.info('Sanitized prompt via OpenAI', { attempt, preview: sanitized.substring(0, 120) });
+            return sanitized;
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.warn('Prompt sanitization attempt failed', { attempt, error: msg });
+          // на ошибки модерации/таймауты — сделаем retry
+        }
+      }
+
+      logger.warn('Prompt sanitization exhausted retries', { originalPreview: originalPrompt.substring(0, 120), retries: maxRetries });
+      return null;
+    };
+
+    // Обрабатываем каждое изображение отдельно с попытками исправления модерации
+    const imagePromises = video.imagePrompts.map(async (img, index) => {
+      try {
+        return await processImage(img, modelId);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isSafetyError = errorMessage.includes('safety system') || 
+                             errorMessage.includes('content policy') ||
+                             errorMessage.includes('rejected as a result');
+
+        if (!isSafetyError) {
+          logger.error(`Failed to generate image ${index + 1}`, {
+            videoId,
+            error: errorMessage
+          });
+          throw error;
+        }
+
+        // Это модерационная ошибка — попробуем несколько раз переписать промпт и повторить
+        logger.warn(`Image ${index + 1} rejected by safety system - attempting sanitization`, {
+          videoId,
+          promptPreview: img.substring(0, 120),
+          error: errorMessage
+        });
+
+        const maxSanitizeRetries = 3;
+        for (let attempt = 1; attempt <= maxSanitizeRetries; attempt += 1) {
+          const sanitized = await sanitizePromptWithOpenAI(img, 1);
+          if (!sanitized) {
+            logger.warn('Sanitization returned empty, continuing to next attempt', { attempt, videoId, index });
+            continue;
+          }
+
+          try {
+            const result = await processImage(sanitized, modelId);
+            logger.info(`Sanitization succeeded on attempt ${attempt} for image ${index + 1}`, { videoId, attempt });
+            return result;
+          } catch (retryErr) {
+            const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            const retryIsSafety = retryMsg.includes('safety system') || retryMsg.includes('content policy') || retryMsg.includes('rejected as a result');
+            logger.warn(`Sanitized prompt attempt ${attempt} failed`, { videoId, attempt, retryError: retryMsg });
+            // Если после санитизации всё ещё модерация — продолжаем цикл
+            if (!retryIsSafety) {
+              // техническая ошибка — пробрасываем
+              throw retryErr;
+            }
+          }
+        }
+
+        // Все попытки стерилизации не помогли — логируем и возвращаем null
+        logger.warn(`All sanitization retries failed for image ${index + 1}, skipping image`, { videoId, index });
+        return null;
+      }
+    });
+
+    const imageResults = await Promise.all(imagePromises);
+    
+    // Фильтруем null значения (отклоненные изображения)
+    const imageLinks = imageResults.filter((link): link is string => link !== null);
+    
+    // Проверяем, что хотя бы одно изображение было сгенерировано
+    if (imageLinks.length === 0) {
+      const error = new Error('All images were rejected by safety system or failed to generate');
+      logger.error('No images could be generated', {
+        videoId,
+        totalPrompts: video.imagePrompts.length
+      });
+      throw error;
+    }
+    
     logger.info("Generated image links", {
-      count: imageLinks.length
+      videoId,
+      count: imageLinks.length,
+      total: video.imagePrompts.length,
+      rejectedCount: video.imagePrompts.length - imageLinks.length
     });
 
     await prisma.video.update({
