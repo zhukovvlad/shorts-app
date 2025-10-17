@@ -23,6 +23,8 @@ const config = {
   clearMocks: true,
   // Таймаут для тестов
   testTimeout: 10000,
+  // Setup файл для установки переменных окружения
+  setupFiles: ['<rootDir>/jest.setup.js'],
 };
 
 module.exports = config;
