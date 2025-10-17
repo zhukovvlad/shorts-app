@@ -31,9 +31,9 @@ export const videoDuration = async (videoId: string) => {
     return;
   }
 
-  const calculateDuration = captions[captions.length - 1]?.endFrame;
+  const calculateDuration = Number(captions[captions.length - 1]?.endFrame);
   
-  if (!calculateDuration || calculateDuration <= 0) {
+  if (!Number.isFinite(calculateDuration) || calculateDuration < 0) {
     logger.warn('Invalid calculated duration for video, setting default duration', { videoId, duration: calculateDuration });
     await prisma.video.update({
       where: { videoId },

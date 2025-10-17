@@ -33,6 +33,7 @@
 - [🔧 Скрипты](#-доступные-скрипты)
 - [🚀 Деплой](#-деплой)
 - [📈 Мониторинг](#-мониторинг-и-отладка)
+- [📚 Документация](#-документация-для-разработчиков)
 - [❓ FAQ](#-faq-часто-задаваемые-вопросы)
 - [🐛 Известные проблемы](#-известные-проблемы-и-ограничения)
 - [🔒 Безопасность](#-безопасность)
@@ -899,6 +900,46 @@ npx prisma studio
 # (будьте осторожны в продакшене!)
 redis-cli FLUSHDB
 ```
+
+---
+
+## 📚 Документация для разработчиков
+
+### Best Practices
+
+Для глубокого понимания архитектуры, паттернов и best practices проекта, обратитесь к подробному руководству:
+
+**📖 [Development Best Practices](./BEST_PRACTICES.md)**
+
+Это руководство охватывает:
+
+- **Code Style** — стандарты форматирования и именования
+- **TypeScript** — best practices типизации и использования типов
+- **Error Handling** — централизованная обработка ошибок с `lib/errorHandling.ts`
+- **Testing** — стратегии тестирования с Jest
+- **Performance** — оптимизация и кэширование (Redis, Next.js cache)
+- **Security** — безопасность и защита данных
+- **Git Workflow** — процесс работы с ветками и коммитами
+
+### Дополнительная документация
+
+Проект содержит дополнительные документы в папке `docs/`:
+
+- **[NEXTAUTH_SETUP.md](./docs/NEXTAUTH_SETUP.md)** — настройка NextAuth.js
+- **[STRIPE_PAYMENT_FLOW.md](./docs/STRIPE_PAYMENT_FLOW.md)** — интеграция Stripe
+- **[OPENAI_INTEGRATION_SUMMARY.md](./docs/OPENAI_INTEGRATION_SUMMARY.md)** — работа с OpenAI API
+- **[REDIS_OPTIMIZATION_AND_SECURITY.md](./REDIS_OPTIMIZATION_AND_SECURITY.md)** — оптимизация Redis
+- **[TESTING.md](./TESTING.md)** — руководство по тестированию
+
+### Contributing
+
+Перед началом работы над проектом:
+
+1. Прочитайте [BEST_PRACTICES.md](./BEST_PRACTICES.md)
+2. Ознакомьтесь с [секцией "Вклад в проект"](#-вклад-в-проект)
+3. Убедитесь, что ваш код проходит все проверки: `npm run lint`, `npm test`
+
+---
 
 ## ❓ FAQ (Часто задаваемые вопросы)
 

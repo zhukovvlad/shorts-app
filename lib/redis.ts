@@ -1,4 +1,4 @@
-import { Redis } from 'ioredis';
+import Redis from 'ioredis';
 import { logger } from '@/lib/logger';
 import { createRedisConfig, validateRedisConfig } from '@/lib/redis-config';
 import { VIDEO_PROGRESS_TTL, VIDEO_CHECKPOINT_TTL, VIDEO_METADATA_TTL } from '@/app/constants/video';

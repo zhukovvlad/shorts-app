@@ -1,6 +1,10 @@
 # Development Best Practices
 
-This guide outlines best practices for developing and maintaining the shorts-app codebase.
+> **Last Updated**: January 2025  
+> **Version**: 2.0.0  
+> **Maintainers**: Development Team
+
+This guide outlines best practices for developing and maintaining the shorts-app codebase. It references the utilities and patterns introduced throughout the project evolution.
 
 ## Table of Contents
 
@@ -11,6 +15,23 @@ This guide outlines best practices for developing and maintaining the shorts-app
 - [Performance](#performance)
 - [Security](#security)
 - [Git Workflow](#git-workflow)
+
+---
+
+## Keeping This Guide Updated
+
+This document should evolve with the codebase. When introducing new patterns or utilities:
+
+1. Update relevant sections with examples
+2. Increment the version number (semver: major.minor.patch)
+3. Update the "Last Updated" date
+4. Document the changes in PR descriptions
+5. Review this guide quarterly for relevance
+
+**Process for updates:**
+- Minor fixes/clarifications: Direct PR with review
+- New sections or major changes: RFC + team discussion
+- Deprecating practices: Mark as deprecated before removal
 
 ---
 
@@ -387,7 +408,7 @@ try {
 
 Follow conventional commits:
 
-```
+```text
 feat: add Redis batching utility
 fix: resolve TypeScript errors in worker
 docs: update best practices guide
@@ -398,7 +419,7 @@ chore: update dependencies
 
 ### Branch Naming
 
-```
+```text
 feature/redis-batching
 fix/typescript-errors
 docs/best-practices

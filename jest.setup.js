@@ -11,7 +11,7 @@ if (!process.env.DIRECT_URL) {
 }
 
 // Set other required environment variables for tests
-process.env.NODE_ENV = 'test';
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.AUTH_SECRET = process.env.AUTH_SECRET || 'test-secret-key-for-testing';
 process.env.NEXTAUTH_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000';
 

@@ -158,6 +158,7 @@ export function validateVideoId(videoId: unknown): string {
 
 /**
  * Validates a positive integer
+ * Rejects NaN, Infinity, and non-integer values
  * @throws {ValidationError} if validation fails
  */
 export function validatePositiveInteger(
@@ -169,6 +170,14 @@ export function validatePositiveInteger(
       `${fieldName} must be a number`,
       fieldName,
       'INVALID_TYPE'
+    );
+  }
+
+  if (!Number.isFinite(value)) {
+    throw new ValidationError(
+      `${fieldName} must be a finite number`,
+      fieldName,
+      'NOT_FINITE'
     );
   }
 
@@ -202,6 +211,7 @@ export function validateCredits(credits: unknown): number {
 /**
  * Validates a URL
  * @throws {ValidationError} if validation fails
+ * @returns Canonicalized URL string with normalized protocol, host, and default ports removed
  */
 export function validateUrl(url: unknown, fieldName: string = 'url'): string {
   if (typeof url !== 'string') {
@@ -212,9 +222,21 @@ export function validateUrl(url: unknown, fieldName: string = 'url'): string {
     );
   }
 
+  // Trim whitespace
+  const trimmedUrl = url.trim();
+
+  if (trimmedUrl.length === 0) {
+    throw new ValidationError(
+      `${fieldName} cannot be empty`,
+      fieldName,
+      'EMPTY_URL'
+    );
+  }
+
+  let urlObj: URL;
+  
   try {
-    new URL(url);
-    return url;
+    urlObj = new URL(trimmedUrl);
   } catch {
     throw new ValidationError(
       `Invalid ${fieldName} format`,
@@ -222,16 +244,53 @@ export function validateUrl(url: unknown, fieldName: string = 'url'): string {
       'INVALID_URL'
     );
   }
+
+  // Enforce only http or https schemes
+  if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+    throw new ValidationError(
+      `${fieldName} must use http or https protocol`,
+      fieldName,
+      'INVALID_SCHEME'
+    );
+  }
+
+  // Build canonicalized URL:
+  // - Normalize protocol and host to lowercase
+  const protocol = urlObj.protocol.toLowerCase();
+  const host = urlObj.hostname.toLowerCase();
+  
+  // - Remove default ports (80 for http, 443 for https)
+  const port = urlObj.port;
+  const shouldIncludePort = 
+    port && 
+    !((protocol === 'http:' && port === '80') || 
+      (protocol === 'https:' && port === '443'));
+  
+  const hostWithPort = shouldIncludePort ? `${host}:${port}` : host;
+  
+  // - Ensure pathname is at least '/'
+  const pathname = urlObj.pathname || '/';
+  
+  // - Preserve search and hash
+  const search = urlObj.search;
+  const hash = urlObj.hash;
+  
+  // Reconstruct canonicalized URL
+  return `${protocol}//${hostWithPort}${pathname}${search}${hash}`;
 }
 
 /**
  * Sanitizes a string by removing potentially dangerous characters
  * Use this for user-generated content that will be displayed
+ * 
+ * - Normalizes Unicode to NFKC form (mitigates homoglyph and compatibility issues)
+ * - Removes Unicode control characters (Cc) and format characters (Cf)
+ * - Trims whitespace
  */
 export function sanitizeString(input: string): string {
-  // Remove control characters and null bytes
   return input
-    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+    .normalize('NFKC') // Normalize Unicode to canonical form
+    .replace(/\p{Cc}|\p{Cf}/gu, '') // Remove control and format characters
     .trim();
 }
 
@@ -279,6 +338,9 @@ export function isValidationError(error: unknown): error is ValidationError {
 /**
  * Validates multiple fields and collects all errors
  * Returns array of validation errors (empty if all valid)
+ * 
+ * Note: This function only collects errors. Use validateFieldsWithValues
+ * if you need both validated values and errors to avoid duplicate work.
  */
 export function validateFields(
   validators: Array<() => void>
@@ -299,6 +361,55 @@ export function validateFields(
   }
 
   return errors;
+}
+
+/**
+ * Validates multiple fields and returns both values and errors
+ * Reduces duplicate work by capturing validator return values
+ * 
+ * @param validators - Array of validation functions that return values
+ * @returns Tuple of [values, errors] where values contains successful results
+ * 
+ * @example
+ * ```typescript
+ * const [values, errors] = validateFieldsWithValues([
+ *   () => validatePrompt(prompt),
+ *   () => validateEmail(email),
+ *   () => validateCredits(credits),
+ * ]);
+ * 
+ * if (errors.length > 0) {
+ *   // Handle validation errors
+ *   const messages = errors.map(e => e.message).join(', ');
+ *   throw new Error(messages);
+ * }
+ * 
+ * // Use validated values
+ * const [validPrompt, validEmail, validCredits] = values;
+ * ```
+ */
+export function validateFieldsWithValues<T extends unknown[]>(
+  validators: { [K in keyof T]: () => T[K] }
+): [(T[number] | undefined)[], ValidationError[]] {
+  const values: (T[number] | undefined)[] = [];
+  const errors: ValidationError[] = [];
+
+  for (let i = 0; i < validators.length; i++) {
+    try {
+      const result = validators[i]();
+      values[i] = result;
+    } catch (error) {
+      if (isValidationError(error)) {
+        errors.push(error);
+        values[i] = undefined; // Mark failed validation
+      } else {
+        // Re-throw non-validation errors
+        throw error;
+      }
+    }
+  }
+
+  return [values, errors];
 }
 
 /**

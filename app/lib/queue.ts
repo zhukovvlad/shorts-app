@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { Redis } from "ioredis";
+import Redis from "ioredis";
 import { logger } from "@/lib/logger";
 import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 

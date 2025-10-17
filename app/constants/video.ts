@@ -31,16 +31,18 @@ export const MAX_RETRY_ATTEMPTS = 3;
 export const INITIAL_RETRY_DELAY_MS = 5000; // 5 seconds
 
 // Cache TTL values (in seconds)
+// Environment-tunable for operational flexibility
 export const VIDEO_LIST_CACHE_TTL = 30; // 30 seconds
-export const VIDEO_PROGRESS_TTL = 3600; // 1 hour
-export const VIDEO_CHECKPOINT_TTL = 7200; // 2 hours
-export const VIDEO_METADATA_TTL = 86400; // 24 hours
+export const VIDEO_PROGRESS_TTL = Number(process.env.VIDEO_PROGRESS_TTL ?? 3600); // 1 hour
+export const VIDEO_CHECKPOINT_TTL = Number(process.env.VIDEO_CHECKPOINT_TTL ?? 7200); // 2 hours
+export const VIDEO_METADATA_TTL = Number(process.env.VIDEO_METADATA_TTL ?? 86400); // 24 hours
 
 // Pagination
 export const VIDEOS_PER_PAGE = 20;
 
 // Worker configuration
-export const WORKER_CONCURRENCY = 2;
+// Concurrency configurable per environment (default 2 for local dev)
+export const WORKER_CONCURRENCY = Number(process.env.WORKER_CONCURRENCY ?? 2);
 export const WORKER_PROGRESS_CLEANUP_DELAY_MS = 30000; // 30 seconds
 
 // Image generation
