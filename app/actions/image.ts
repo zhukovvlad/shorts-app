@@ -1,4 +1,4 @@
-import { prisma } from "../lib/db";
+import { prisma, withRetry } from "../lib/db";
 import Replicate from "replicate";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
@@ -19,7 +19,12 @@ const s3Client = new S3Client({
   },
 });
 
-const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+// Поддержка обеих переменных окружения для обратной совместимости
+// AWS_S3_BUCKET_NAME (предпочтительно) или AWS_BUCKET_NAME (legacy)
+const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
+if (!bucketName) {
+  throw new Error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
+}
 
 /**
  * Функция для извлечения URL из различных форматов вывода Replicate моделей
@@ -140,7 +145,11 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
     logger.info(`OpenAI generated image URL: ${imageUrl}`);
 
     // Загружаем изображение с OpenAI и сохраняем в S3
-    const imageResponse = await fetch(imageUrl);
+    // Добавляем timeout (30s) для предотвращения зависания
+    const abortController1 = new AbortController();
+    const timeout1 = setTimeout(() => abortController1.abort(), 30_000);
+    const imageResponse = await fetch(imageUrl, { signal: abortController1.signal })
+      .finally(() => clearTimeout(timeout1));
     
     if (!imageResponse.ok) {
       const errorText = await imageResponse.text().catch(() => 'Unknown error');
@@ -193,9 +202,11 @@ const processImageWithOpenAI = async (prompt: string, modelId: string) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     // Проверяем, является ли это ошибкой модерации контента
-    const isSafetyError = errorMessage.includes('safety system') || 
-                         errorMessage.includes('content policy') ||
-                         errorMessage.includes('rejected as a result');
+    // Нормализуем к нижнему регистру для case-insensitive проверки
+    const lower = errorMessage.toLowerCase();
+    const isSafetyError = lower.includes('safety system') || 
+                         lower.includes('content policy') ||
+                         lower.includes('rejected as a result');
     
     if (isSafetyError) {
       logger.warn("Image rejected by OpenAI safety system", {
@@ -278,9 +289,12 @@ const processImage = async (img: string, modelId?: string) => {
 
     // Финальная проверка - удалось ли извлечь URL
     if (!imageUrl || typeof imageUrl !== 'string') {
+      const outPreview = (() => {
+        try { return JSON.stringify(output).slice(0, 2000); } catch { return '[unserializable]'; }
+      })();
       logger.error('Failed to extract valid URL from model output', {
         modelName: model.name,
-        output: JSON.stringify(output, null, 2)
+        outputPreview: outPreview
       });
       throw new Error(`Could not extract valid image URL from model ${model.name}. Output type: ${typeof output}, isArray: ${Array.isArray(output)}`);
     }
@@ -295,7 +309,11 @@ const processImage = async (img: string, modelId?: string) => {
     }
 
     // Загружаем изображение и определяем его тип
-    const response = await fetch(imageUrl);
+    // Добавляем timeout (30s) для предотвращения зависания
+    const abortController2 = new AbortController();
+    const timeout2 = setTimeout(() => abortController2.abort(), 30_000);
+    const response = await fetch(imageUrl, { signal: abortController2.signal })
+      .finally(() => clearTimeout(timeout2));
     
     // Проверяем успешность запроса
     if (!response.ok) {
@@ -418,9 +436,11 @@ export const generateImages = async (videoId: string) => {
         return await processImage(img, modelId);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        const isSafetyError = errorMessage.includes('safety system') || 
-                             errorMessage.includes('content policy') ||
-                             errorMessage.includes('rejected as a result');
+        // Нормализуем к нижнему регистру для case-insensitive проверки
+        const lower = errorMessage.toLowerCase();
+        const isSafetyError = lower.includes('safety system') || 
+                             lower.includes('content policy') ||
+                             lower.includes('rejected as a result');
 
         if (!isSafetyError) {
           logger.error(`Failed to generate image ${index + 1}`, {
@@ -451,7 +471,9 @@ export const generateImages = async (videoId: string) => {
             return result;
           } catch (retryErr) {
             const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-            const retryIsSafety = retryMsg.includes('safety system') || retryMsg.includes('content policy') || retryMsg.includes('rejected as a result');
+            // Нормализуем к нижнему регистру для case-insensitive проверки
+            const retryLower = retryMsg.toLowerCase();
+            const retryIsSafety = retryLower.includes('safety system') || retryLower.includes('content policy') || retryLower.includes('rejected as a result');
             logger.warn(`Sanitized prompt attempt ${attempt} failed`, { videoId, attempt, retryError: retryMsg });
             // Если после санитизации всё ещё модерация — продолжаем цикл
             if (!retryIsSafety) {
@@ -489,10 +511,12 @@ export const generateImages = async (videoId: string) => {
       rejectedCount: video.imagePrompts.length - imageLinks.length
     });
 
-    await prisma.video.update({
-      where: { videoId },
-      data: { imageLinks: imageLinks, thumbnail: imageLinks[0] },
-    });
+    await withRetry(() =>
+      prisma.video.update({
+        where: { videoId },
+        data: { imageLinks, thumbnail: imageLinks[0] },
+      })
+    );
   } catch (error) {
     logger.error("Error generating images", {
       error: error instanceof Error ? error.message : String(error)

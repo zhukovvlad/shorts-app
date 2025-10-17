@@ -7,7 +7,7 @@
 ### 1. Content Moderation / Safety System
 
 **Ошибка:**
-```
+```text
 400 Your request was rejected as a result of our safety system.
 ```
 
@@ -21,7 +21,7 @@
 - 📊 Метрики: Смотрите `sanitization attempt` в логах
 
 **Процесс обработки:**
-```
+```text
 1. Ошибка модерации
    ↓
 2. Санитизация промпта (gpt-4o-mini)
@@ -34,7 +34,7 @@
 ```
 
 **Лог-индикаторы:**
-```
+```text
 [INFO] Attempting to sanitize prompt {"attempt":1, "originalPrompt":"..."}
 [INFO] Sanitization successful {"attempt":1, "sanitizedPrompt":"..."}
 [INFO] Retry with sanitized prompt succeeded {"attempt":1}
@@ -47,7 +47,7 @@
 ### 2. OpenAI API Key Missing
 
 **Ошибка:**
-```
+```text
 OPENAI_API_KEY is not configured
 ```
 
@@ -60,7 +60,7 @@ OPENAI_API_KEY=sk-...
 ```
 
 **Как получить ключ:**
-1. Перейти на https://platform.openai.com/api-keys
+1. Перейти на <https://platform.openai.com/api-keys>
 2. Создать новый API ключ
 3. Добавить в `.env.local`
 
@@ -69,7 +69,7 @@ OPENAI_API_KEY=sk-...
 ### 3. Rate Limit Exceeded
 
 **Ошибка:**
-```
+```text
 429 Rate limit exceeded
 ```
 
@@ -81,15 +81,15 @@ OPENAI_API_KEY=sk-...
 - ⚙️ Настройте rate limiting в коде
 
 **Проверка квот:**
-- OpenAI: https://platform.openai.com/usage
-- Replicate: https://replicate.com/account/billing
+- OpenAI: <https://platform.openai.com/usage>
+- Replicate: <https://replicate.com/account/billing>
 
 ---
 
 ### 4. Network / Timeout Errors
 
 **Ошибка:**
-```
+```text
 fetch failed
 ETIMEDOUT
 ECONNRESET
@@ -103,7 +103,7 @@ ECONNRESET
 - ⚙️ Увеличьте таймауты если проблема постоянная
 
 **Лог-индикаторы:**
-```
+```text
 [INFO] Retry attempt {"attemptsMade":1, "maxAttempts":3}
 ```
 
@@ -112,7 +112,7 @@ ECONNRESET
 ### 5. S3 Upload Failed
 
 **Ошибка:**
-```
+```text
 Failed to upload to S3
 ```
 
@@ -137,7 +137,7 @@ Failed to upload to S3
 ### 6. Invalid Model ID
 
 **Ошибка:**
-```
+```text
 Invalid OpenAI model: unknown-model
 Model unknown-model not found, using default model
 ```
@@ -160,7 +160,7 @@ const models = IMAGE_MODELS.map(m => m.id);
 ### 7. All Images Failed
 
 **Ошибка:**
-```
+```text
 All images were rejected by safety system or failed to generate
 ```
 
@@ -239,7 +239,7 @@ rejection_rate = rejectedCount / total_prompts
 **Critical:** > 20%
 
 ### 3. API Errors
-```
+```text
 api_error_rate = api_errors / total_requests
 ```
 
@@ -274,7 +274,7 @@ WHERE videoId = 'xxx';
 
 ### Очистка застрявших задач
 
-```bash
+```text
 # В Redis
 redis-cli
 > DEL bull:video-processing:xxx

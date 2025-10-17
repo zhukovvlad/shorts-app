@@ -6,9 +6,11 @@
 describe('Content Moderation - Safety Error Detection', () => {
   describe('isSafetyError helper logic', () => {
     const isSafetyError = (errorMessage: string): boolean => {
-      return errorMessage.includes('safety system') || 
-             errorMessage.includes('content policy') ||
-             errorMessage.includes('rejected as a result');
+      // Нормализуем к нижнему регистру для case-insensitive проверки
+      const lower = errorMessage.toLowerCase();
+      return lower.includes('safety system') || 
+             lower.includes('content policy') ||
+             lower.includes('rejected as a result');
     };
 
     it('should detect "safety system" as moderation error', () => {
@@ -41,9 +43,13 @@ describe('Content Moderation - Safety Error Detection', () => {
       });
     });
 
-    it('should handle mixed case in error messages', () => {
-      expect(isSafetyError('SAFETY SYSTEM')).toBe(false); // case-sensitive
-      expect(isSafetyError('Content Policy violation')).toBe(false); // case-sensitive
+    it('should handle mixed case in error messages (case-insensitive)', () => {
+      // После исправления: все варианты регистра должны определяться корректно
+      expect(isSafetyError('SAFETY SYSTEM')).toBe(true);
+      expect(isSafetyError('Safety System')).toBe(true);
+      expect(isSafetyError('Content Policy violation')).toBe(true);
+      expect(isSafetyError('CONTENT POLICY')).toBe(true);
+      expect(isSafetyError('Rejected As A Result')).toBe(true);
       expect(isSafetyError('safety system detected')).toBe(true);
     });
   });

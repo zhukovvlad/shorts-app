@@ -17,6 +17,13 @@ const s3Client = new S3Client({
   },
 });
 
+// Поддержка обеих переменных окружения для обратной совместимости
+// AWS_S3_BUCKET_NAME (предпочтительно) или AWS_BUCKET_NAME (legacy)
+const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
+if (!bucketName) {
+  throw new Error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
+}
+
 export const generateAudio = async (videoId: string) => {
   try {
     const video = await prisma.video.findUnique({
@@ -51,7 +58,7 @@ export const generateAudio = async (videoId: string) => {
     const fileName = `${randomUUID()}.mp3`;
 
     const command = new PutObjectCommand({
-      Bucket: process.env.AWS_S3_BUCKET_NAME!,
+      Bucket: bucketName,
       Key: fileName,
       Body: audioBuffer,
       ContentType: "audio/mpeg",
@@ -59,7 +66,7 @@ export const generateAudio = async (videoId: string) => {
 
     await s3Client.send(command);
 
-    const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+    const s3Url = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
     logger.info("Audio uploaded to S3", { fileName });
 
     await prisma.video.update({

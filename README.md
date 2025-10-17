@@ -190,7 +190,7 @@ ASSEMBLYAI_API_KEY="..."
 AWS_ACCESS_KEY_ID="AKIA..."
 AWS_SECRET_ACCESS_KEY="..."
 AWS_REGION="us-east-1"  # или ваш регион
-AWS_BUCKET_NAME="your-bucket-name"
+AWS_S3_BUCKET_NAME="your-bucket-name"  # Предпочтительно (AWS_BUCKET_NAME также поддерживается для обратной совместимости)
 
 # ==================== Stripe ====================
 # Секретный ключ для API
@@ -867,7 +867,7 @@ node scripts/test-redis.js
 - Проверьте Redis connection
 
 **Ошибки генерации изображений**:
-- 🛡️ **Content Moderation** (`400 safety system`): Автоматически пропускается, видео создается с остальными изображениями
+- 🛡️ **Content Moderation** (`400 safety system`): Система до 3 раз переписывает промпт (санитизация) и повторяет генерацию; при неудаче — изображение пропускается
 - 🔑 **API ключ отсутствует**: Добавьте `OPENAI_API_KEY` или `REPLICATE_API_KEY`
 - ⏱️ **Rate Limit** (`429`): Воркер автоматически повторит попытку
 - 📚 **Подробнее**: [docs/TROUBLESHOOTING_IMAGE_GENERATION.md](./docs/TROUBLESHOOTING_IMAGE_GENERATION.md)

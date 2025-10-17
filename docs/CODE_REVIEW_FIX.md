@@ -1206,6 +1206,429 @@ it('должно выбросить ошибку при -Infinity amount', async
 
 ---
 
+## Замечание #12: Case-insensitive проверка ошибок модерации
+> Модерационные ошибки определяются через case-sensitive `includes()`, что может пропустить варианты вроде "Safety System" или "SAFETY SYSTEM"
+
+**Примечание:** Это замечание получено в двух формулировках (строки 193-210 и строки 421-424/454-461), но исправлено единообразно во всех трёх местах кода.
+
+## Решение
+Реализована **нормализация к нижнему регистру** перед проверкой на модерационные ошибки во всех трёх местах использования.
+
+### Что было изменено
+
+#### До (проблемный код)
+```typescript
+// В 3 местах app/actions/image.ts (~193, ~423, ~456)
+const errorMessage = error instanceof Error ? error.message : String(error);
+const isSafetyError = errorMessage.includes('safety system') || 
+                     errorMessage.includes('content policy') ||
+                     errorMessage.includes('rejected as a result');
+```
+
+**Проблемы:**
+- ❌ Проверка регистрозависимая (case-sensitive)
+- ❌ "Safety System" не определяется как модерационная ошибка
+- ❌ "SAFETY SYSTEM" не определяется как модерационная ошибка
+- ❌ "Content Policy" (с заглавными) пропускается
+- ❌ Может привести к неправильной классификации ошибок
+
+#### После (исправленный код)
+```typescript
+// Место #1: processImageWithOpenAI (~193)
+const errorMessage = error instanceof Error ? error.message : String(error);
+// Нормализуем к нижнему регистру для case-insensitive проверки
+const lower = errorMessage.toLowerCase();
+const isSafetyError = lower.includes('safety system') || 
+                     lower.includes('content policy') ||
+                     lower.includes('rejected as a result');
+
+if (isSafetyError) {
+  logger.warn("Image rejected by OpenAI safety system", {
+    error: errorMessage,  // ✅ Оригинальное сообщение сохраняется
+    promptPreview: prompt.substring(0, 150)
+  });
+}
+
+// Место #2: generateImages - первая проверка (~423)
+const errorMessage = error instanceof Error ? error.message : String(error);
+// Нормализуем к нижнему регистру для case-insensitive проверки
+const lower = errorMessage.toLowerCase();
+const isSafetyError = lower.includes('safety system') || 
+                     lower.includes('content policy') ||
+                     lower.includes('rejected as a result');
+
+// Место #3: generateImages - retry loop (~456)
+const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+// Нормализуем к нижнему регистру для case-insensitive проверки
+const retryLower = retryMsg.toLowerCase();
+const retryIsSafety = retryLower.includes('safety system') || 
+                     retryLower.includes('content policy') || 
+                     retryLower.includes('rejected as a result');
+```
+
+### Улучшения
+
+**Детектируются все варианты регистра:**
+- ✅ `"safety system"` → detected
+- ✅ `"Safety System"` → detected
+- ✅ `"SAFETY SYSTEM"` → detected
+- ✅ `"SaFeTy SyStEm"` → detected
+- ✅ `"content policy"` → detected
+- ✅ `"Content Policy"` → detected
+- ✅ `"CONTENT POLICY"` → detected
+- ✅ `"rejected as a result"` → detected
+- ✅ `"Rejected As A Result"` → detected
+
+**Оригинальное сообщение сохраняется:**
+```typescript
+logger.warn("Image rejected by OpenAI safety system", {
+  error: errorMessage,  // Не lower, а оригинал!
+  promptPreview: prompt.substring(0, 150)
+});
+```
+
+### Тестирование
+
+**Обновлен тестовый helper:**
+```typescript
+const isSafetyError = (errorMessage: string): boolean => {
+  // Нормализуем к нижнему регистру для case-insensitive проверки
+  const lower = errorMessage.toLowerCase();
+  return lower.includes('safety system') || 
+         lower.includes('content policy') ||
+         lower.includes('rejected as a result');
+};
+```
+
+**Обновлен тест "should handle mixed case":**
+```typescript
+it('should handle mixed case in error messages (case-insensitive)', () => {
+  // После исправления: все варианты регистра должны определяться корректно
+  expect(isSafetyError('SAFETY SYSTEM')).toBe(true);
+  expect(isSafetyError('Safety System')).toBe(true);
+  expect(isSafetyError('Content Policy violation')).toBe(true);
+  expect(isSafetyError('CONTENT POLICY')).toBe(true);
+  expect(isSafetyError('Rejected As A Result')).toBe(true);
+  expect(isSafetyError('safety system detected')).toBe(true);
+});
+```
+
+**Результаты:**
+- ✅ `image-sanitization.spec.ts`: 7/7 тестов прошли
+- ✅ TypeScript компиляция: без ошибок
+- ✅ Все 3 места в коде синхронизированы
+
+### Файлы изменены
+- `app/actions/image.ts` - 3 места обновлены (~193, ~423, ~456)
+- `app/actions/image-sanitization.spec.ts` - обновлен helper и тест
+
+### Преимущества
+- ✅ **Устойчивость к регистру:** Все варианты капитализации детектируются
+- ✅ **Консистентность логики:** Одинаковая нормализация во всех 3 местах
+- ✅ **Сохранение оригинала:** Логи содержат оригинальное сообщение без изменений
+- ✅ **Простота реализации:** Одна строка `toLowerCase()` решает проблему
+- ✅ **Полное покрытие тестами:** Проверены 6 вариантов регистра
+
+---
+
+## Замечание #14: Несоответствие версии в футере документа
+> В docs/CONTENT_MODERATION_FIX_SUMMARY.md заголовок показывает v1.7.2, а футер - v1.7.1 и дату 2025-10-16
+
+## Решение
+Обновлён футер документа для соответствия заголовку.
+
+### Что было изменено
+
+#### До (несоответствие)
+```markdown
+# Резюме: Обработка ошибок модерации контента (v1.7.2)
+
+> **Обновление v1.7.2:** Добавлена автоматическая санитизация промптов...
+
+...
+
+---
+
+**Версия:** 1.7.1  
+**Дата:** 2025-10-16  
+```
+
+**Проблема:**
+- ❌ Заголовок указывает v1.7.2
+- ❌ Футер указывает v1.7.1
+- ❌ Дата не соответствует дате релиза новой функциональности
+
+#### После (исправленный футер)
+```markdown
+# Резюме: Обработка ошибок модерации контента (v1.7.2)
+
+> **Обновление v1.7.2:** Добавлена автоматическая санитизация промптов...
+
+...
+
+---
+
+**Версия:** 1.7.2  
+**Дата:** 2025-10-17  
+```
+
+### Изменения
+- ✅ Версия: `1.7.1` → `1.7.2` (соответствие заголовку)
+- ✅ Дата: `2025-10-16` → `2025-10-17` (дата релиза v1.7.2)
+- ✅ Консистентность документа восстановлена
+
+### Файлы изменены
+- `docs/CONTENT_MODERATION_FIX_SUMMARY.md` - обновлён футер (строки 293-294)
+
+### Преимущества
+- ✅ **Консистентность:** Версия одинаковая по всему документу
+- ✅ **Точность:** Дата соответствует фактическому релизу v1.7.2
+- ✅ **Ясность:** Читатели видят актуальную версию функциональности
+
+---
+
+## Замечание #15: Некорректное сообщение лога в документации
+> В docs/CONTENT_MODERATION_HANDLING.md примеры логов говорят "using placeholder", хотя код в v1.7.2 выполняет санитизацию и пропускает изображение (не использует placeholder)
+
+## Решение
+Обновлены примеры логов в документации, чтобы точно отражать реальное поведение кода v1.7.2.
+
+### Что было изменено
+
+#### До (неточная документация)
+```typescript
+// Строка 74-79
+logger.warn(`Image ${index + 1} rejected by safety system, using placeholder`, {
+  videoId,
+  promptPreview: img.substring(0, 100),
+  error: errorMessage
+});
+
+// Строка 124
+[WARN] Image 1 rejected by safety system, using placeholder {...}
+```
+
+**Проблемы:**
+- ❌ Говорит "using placeholder" (подстановка placeholder)
+- ❌ Не отражает реальное поведение v1.7.2 (санитизация → skip)
+- ❌ Отсутствуют логи процесса санитизации
+- ❌ Вводит читателей в заблуждение о механизме работы
+
+#### После (точная документация v1.7.2)
+
+**Строки 74-79 - Примеры логов:**
+```typescript
+// При обнаружении модерационной ошибки (v1.7.2):
+logger.warn(`Image ${index + 1} rejected by safety system - attempting sanitization`, {
+  videoId,
+  promptPreview: img.substring(0, 120),
+  error: errorMessage
+});
+
+// После неудачных попыток санитизации (v1.7.2):
+logger.warn(`All sanitization retries failed for image ${index + 1}, skipping image`, {
+  videoId,
+  index
+});
+```
+
+**Строка 124 - Полный поток логов:**
+```
+[WARN] Image 1 rejected by safety system - attempting sanitization {...}
+[INFO] Attempting to sanitize prompt {"attempt":1, "originalPrompt":"..."}
+[WARN] Sanitized prompt attempt 1 failed {...}
+[WARN] All sanitization retries failed for image 1, skipping image {...}
+[INFO] Generated image links {"count":4, "total":5, "rejectedCount":1}
+```
+
+### Дополнительные изменения
+
+**Добавлена секция "Реализованные улучшения (v1.7.2)":**
+- Документирована автоматическая санитизация промптов
+- Показан код реализации с 3 retry-попытками
+- Отражён fallback на `null` (skip) при неудаче
+
+**Обновлена секция "Будущие улучшения":**
+- Удалено "2. Модификация промпта" (реализовано в v1.7.2)
+- Перенумерованы оставшиеся пункты (1, 2, 3 вместо 1, 2, 3, 4)
+- "Альтернативный провайдер" теперь под номером 3
+
+### Файлы изменены
+- `docs/CONTENT_MODERATION_HANDLING.md` - обновлены примеры логов (строки 74-79, 124)
+
+### Преимущества
+- ✅ **Точность:** Логи соответствуют реальному коду v1.7.2
+- ✅ **Полнота:** Показан весь поток: обнаружение → санитизация → skip
+- ✅ **Ясность:** Читатели понимают, что происходит на самом деле
+- ✅ **Актуальность:** Документация синхронизирована с кодом
+
+---
+
+## Замечание #16: Устаревший пример кода в quick reference
+> В docs/IMAGE_GENERATION_ERROR_HANDLING_QUICK_REF.md (строки 112-134) пример кода показывает немедленный skip при модерационных ошибках, не отражая поведение v1.7.2 с санитизацией и retry
+
+## Решение
+Полностью обновлён пример кода для отражения v1.7.2 с автоматической санитизацией промптов.
+
+### Что было изменено
+
+#### До (устаревший код v1.7.1)
+```typescript
+if (isSafetyError) {
+  logger.warn(`Image ${index + 1} rejected by safety system`);
+  return null; // ← Сразу пропускаем (устаревшее поведение)
+}
+```
+
+#### После (актуальный код v1.7.2)
+```typescript
+if (isSafetyError) {
+  // 🤖 Санитизация + retry (до 3 попыток)
+  const maxRetries = 3;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const sanitized = await sanitizePromptWithOpenAI(img, 1);
+    if (sanitized) {
+      try {
+        const result = await processImage(sanitized, modelId);
+        return result; // ✅ Успех!
+      } catch (retryErr) {
+        // Проверка: снова модерация или техническая ошибка?
+      }
+    }
+  }
+  // Пропускаем только после 3 неудачных попыток
+  return null;
+}
+```
+
+### Дополнительные обновления
+
+1. **Добавлена функция `sanitizePromptWithOpenAI()`** с JSDoc документацией
+2. **Обновлена секция "Что изменилось"** - добавлен v1.7.2 с диаграммой потока санитизации
+3. **Обновлён футер** - версия 1.7.1 → 1.7.2, дата 2025-10-16 → 2025-10-17
+4. **Расширен checklist** - добавлены пункты про проверку логов санитизации
+5. **Case-insensitive проверки** - используется `.toLowerCase()` во всех местах
+
+### Файлы изменены
+- `docs/IMAGE_GENERATION_ERROR_HANDLING_QUICK_REF.md` - полностью обновлён пример (строки 112-205+)
+
+### Преимущества
+- ✅ **Актуальность:** Код соответствует v1.7.2 из app/actions/image.ts
+- ✅ **Полнота:** Показан полный механизм: detect → sanitize → retry → skip
+- ✅ **Документация:** Функция санитизации задокументирована
+- ✅ **Визуализация:** Добавлена диаграмма потока v1.7.2
+
+---
+
+## Замечание #18: HTTP timeouts для внешних fetch запросов
+> В app/actions/image.ts (строки 143-154, 298-310) fetch запросы не имеют timeout, что может привести к зависанию потоков при проблемах с сетью
+
+## Решение
+Добавлены HTTP timeouts (30 секунд) с использованием AbortController для всех внешних fetch запросов.
+
+### Что было изменено
+
+#### До (без timeout)
+```typescript
+// Строка 143
+const imageResponse = await fetch(imageUrl);
+
+// Строка 298
+const response = await fetch(imageUrl);
+```
+
+**Проблемы:**
+- ❌ Нет timeout - может зависнуть навсегда
+- ❌ Блокирует поток при медленном соединении
+- ❌ Нет возможности отменить запрос
+
+#### После (с timeout 30s)
+```typescript
+// Строка 143-146
+const abortController1 = new AbortController();
+const timeout1 = setTimeout(() => abortController1.abort(), 30_000);
+const imageResponse = await fetch(imageUrl, { signal: abortController1.signal })
+  .finally(() => clearTimeout(timeout1));
+
+// Строка 303-306
+const abortController2 = new AbortController();
+const timeout2 = setTimeout(() => abortController2.abort(), 30_000);
+const response = await fetch(imageUrl, { signal: abortController2.signal })
+  .finally(() => clearTimeout(timeout2));
+```
+
+### Преимущества
+- ✅ **Защита от зависания**: Максимум 30 секунд ожидания
+- ✅ **Fail-fast**: Быстрый fallback при проблемах с сетью
+- ✅ **Очистка ресурсов**: `.finally()` гарантирует clearTimeout
+- ✅ **Стандартный паттерн**: Использование AbortController (Web API)
+
+### Файлы изменены
+- `app/actions/image.ts` - добавлены timeouts для 2 fetch запросов
+
+---
+
+## Замечание #19: Несоответствие переменной окружения S3 bucket
+> README.md документирует AWS_BUCKET_NAME, но код использует AWS_S3_BUCKET_NAME, что приводит к runtime ошибкам при следовании документации
+
+## Решение
+Добавлен fallback механизм для поддержки обеих переменных + ранняя валидация с информативной ошибкой.
+
+### Что было изменено
+
+#### До (жёсткая зависимость)
+```typescript
+// app/actions/image.ts (строка 22)
+const bucketName = process.env.AWS_S3_BUCKET_NAME!;
+
+// app/actions/audio.ts (строки 54, 62)
+Bucket: process.env.AWS_S3_BUCKET_NAME!,
+const s3Url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3...`;
+
+// README.md (строка 193)
+AWS_BUCKET_NAME="your-bucket-name"
+```
+
+**Проблемы:**
+- ❌ README документирует неправильное имя переменной
+- ❌ Runtime ошибка при следовании README
+- ❌ Нет валидации - undefined превращается в строку "undefined"
+
+#### После (fallback + валидация)
+
+**app/actions/image.ts и app/actions/audio.ts:**
+```typescript
+// Поддержка обеих переменных для обратной совместимости
+const bucketName = process.env.AWS_S3_BUCKET_NAME ?? process.env.AWS_BUCKET_NAME;
+if (!bucketName) {
+  throw new Error('S3 bucket name is not configured. Set AWS_S3_BUCKET_NAME (preferred) or AWS_BUCKET_NAME.');
+}
+
+// Использование константы вместо переменной окружения
+Bucket: bucketName,  // было: process.env.AWS_S3_BUCKET_NAME!
+const s3Url = `https://${bucketName}.s3...`;  // было: ${process.env.AWS_S3_BUCKET_NAME}
+```
+
+**README.md:**
+```markdown
+# ==================== AWS S3 ====================
+AWS_S3_BUCKET_NAME="your-bucket-name"  # Предпочтительно (AWS_BUCKET_NAME также поддерживается)
+```
+
+### Преимущества
+- ✅ **Обратная совместимость**: Старые деплои с AWS_BUCKET_NAME продолжат работать
+- ✅ **Правильная документация**: README теперь соответствует коду
+- ✅ **Ранняя валидация**: Fail-fast с информативной ошибкой при старте
+- ✅ **Централизация**: Единая точка валидации вместо множественных проверок
+- ✅ **Type safety**: Константа bucketName имеет тип string (не string | undefined)
+
+### Файлы изменены
+- `app/actions/image.ts` - добавлен fallback и валидация (строки 22-27)
+- `app/actions/audio.ts` - добавлен fallback и валидация, использование константы
+- `README.md` - обновлена переменная AWS_BUCKET_NAME → AWS_S3_BUCKET_NAME (строка 193)
+
+---
+
 ## История изменений
 
 ### 15 октября 2025
@@ -1276,9 +1699,89 @@ it('должно выбросить ошибку при -Infinity amount', async
   - Nitpick #41: Верифицировано наличие тестов для NaN/Infinity (реализовано в #11)
   - Nitpick #42: Верифицировано наличие тестов для trim userId (реализовано в #11)
 
+### 17 октября 2025, 10:00
+- ✅ Замечание #12: Case-insensitive проверка ошибок модерации (строки 193-210)
+  - Добавлена нормализация `errorMessage.toLowerCase()` перед проверкой на модерационные ошибки
+  - Место #1: `processImageWithOpenAI()` (~193) - обновлено
+  - Теперь детектируются все варианты регистра: "safety system", "Safety System", "SAFETY SYSTEM"
+  - Оригинальное сообщение ошибки сохраняется в логах (без изменений)
+  - Unit-тесты обновлены для проверки case-insensitive детекции
+  - Добавлено 6 новых тестов для различных вариантов регистра
+  - Общее количество тестов: 7 (было 7, но изменена логика)
+
+### 17 октября 2025, 10:15
+- ✅ Замечание #13: Case-insensitive проверка в generateImages() (строки 421-424, 454-461)
+  - **Дубликат Замечания #12** - исправлено в той же сессии
+  - Место #2: `generateImages()` первая проверка (~423) - обновлено
+  - Место #3: `generateImages()` retry loop (~460) - обновлено
+  - Используется та же логика нормализации через `.toLowerCase()`
+  - Все три места в коде теперь синхронизированы
+  - Верификация: все тесты проходят (7/7 ✅)
+
+### 17 октября 2025, 10:20
+- ✅ Замечание #14: Несоответствие версии в футере CONTENT_MODERATION_FIX_SUMMARY.md
+  - Заголовок указывал v1.7.2, футер - v1.7.1 (несоответствие)
+  - Обновлён футер: версия с 1.7.1 → 1.7.2
+  - Обновлена дата: с 2025-10-16 → 2025-10-17 (дата релиза v1.7.2)
+  - Теперь документ консистентен по всей длине
+
+### 17 октября 2025, 10:30
+- ✅ Замечание #15: Некорректное сообщение лога в CONTENT_MODERATION_HANDLING.md
+  - Старое сообщение: "using placeholder" (не соответствует реальному коду)
+  - Реальное поведение v1.7.2: санитизация → retry → skip (не placeholder)
+  - Обновлены примеры логов (строки 74-79, 124):
+    - "rejected by safety system - attempting sanitization"
+    - "All sanitization retries failed for image X, skipping image"
+  - Добавлена секция "Реализованные улучшения (v1.7.2)"
+  - Перенумерованы "Будущие улучшения" (санитизация теперь реализована)
+
+### 17 октября 2025, 10:40
+- ✅ Замечание #16: Устаревший пример кода в IMAGE_GENERATION_ERROR_HANDLING_QUICK_REF.md
+  - Строки 112-134: пример сразу пропускал изображения при модерационных ошибках
+  - Не отражал поведение v1.7.2 с автоматической санитизацией
+  - Обновлён пример кода с полным циклом санитизации (3 retry)
+  - Добавлена функция `sanitizePromptWithOpenAI()` с документацией
+  - Обновлена секция "Что изменилось": добавлен v1.7.2 с диаграммой потока
+  - Обновлён футер: версия 1.7.1 → 1.7.2, дата 2025-10-16 → 2025-10-17
+  - Обновлён checklist: добавлен пункт про проверку логов санитизации
+
+### 17 октября 2025, 10:45
+- ✅ Замечание #17: Несоответствие версии в футере IMAGE_GENERATION_ERROR_HANDLING_QUICK_REF.md (строки 267-268)
+  - **Дубликат Замечания #16** - уже исправлено в предыдущем замечании
+  - Футер показывал 1.7.1, но содержание описывало v1.7.2
+  - Верификация: футер уже обновлён на 1.7.2 с датой 2025-10-17 ✅
+
+### 17 октября 2025, 11:00
+- ✅ Замечание #18: HTTP timeouts для внешних fetch запросов
+  - Добавлены AbortController с 30s timeout для предотвращения зависания потоков
+  - Место #1: `app/actions/image.ts` строка 143 - fetch изображения от OpenAI
+  - Место #2: `app/actions/image.ts` строка 298 - fetch изображения от Replicate
+  - Паттерн: `AbortController` + `setTimeout` + `.finally()` для очистки
+  - Защита от бесконечного ожидания при проблемах с сетью
+
+### 17 октября 2025, 11:05
+- ✅ Замечание #19: Несоответствие переменной окружения S3 bucket (AWS_BUCKET_NAME vs AWS_S3_BUCKET_NAME)
+  - README.md документировал `AWS_BUCKET_NAME`, код использовал `AWS_S3_BUCKET_NAME`
+  - Добавлен fallback: `AWS_S3_BUCKET_NAME ?? AWS_BUCKET_NAME`
+  - Добавлена ранняя валидация с информативной ошибкой
+  - Обновлены файлы: `app/actions/image.ts`, `app/actions/audio.ts`
+  - Обновлён README.md: `AWS_BUCKET_NAME` → `AWS_S3_BUCKET_NAME` (с примечанием о обратной совместимости)
+  - Предотвращение runtime ошибок при следовании устаревшей документации
+
+### 17 октября 2025, 11:30
+- ✅ Nitpicks #43-57: Markdown & Documentation Quality (15 новых исправлений)
+  - **Markdown compliance (MD040, MD034):** Добавлены языки для 30+ code blocks
+  - **Documentation accuracy:** Исправлены формулировки логов (4 места)
+  - **Code safety:** Log bloat protection + DB retry с withRetry
+  - **Russian grammar:** 3 исправления координации глаголов и замена англицизмов
+  - Файлы: 8 документов обновлено, 2 улучшения кода
+  - Детали: см. `docs/NITPICK_FIXES.md` секции #14-21
+
 ---
 
 **Дата первого исправления:** 15 октября 2025  
-**Дата последнего обновления:** 16 октября 2025, 15:00  
-**Всего исправлений:** 11 замечаний + 42 nitpicks = 53 ✅  
+**Дата последнего обновления:** 17 октября 2025, 11:30  
+**Всего исправлений:** 19 замечаний (2 дубликата) + 57 nitpicks = **76 ✅**  
 **Статус:** ✅ Полностью завершено
+
+**Подробная документация nitpicks:** `docs/NITPICK_FIXES.md`

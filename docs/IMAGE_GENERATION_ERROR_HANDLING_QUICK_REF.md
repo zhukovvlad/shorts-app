@@ -3,7 +3,7 @@
 ## 🎯 Что изменилось
 
 ### ❌ Раньше (v1.7.0 и ранее)
-```
+```text
 [OpenAI отклоняет 1 из 5 изображений]
       ↓
 [Весь процесс падает]
@@ -13,8 +13,8 @@
 [Потрачены кредиты, результата нет]
 ```
 
-### ✅ Сейчас (v1.7.1+)
-```
+### ⚠️ v1.7.1 (Graceful Degradation)
+```text
 [OpenAI отклоняет 1 из 5 изображений]
       ↓
 [Пропускаем это изображение с WARN]
@@ -24,6 +24,25 @@
 [Создаем видео с 4 изображениями]
       ↓
 [Пользователь ПОЛУЧАЕТ видео]
+```
+
+### ✅ Сейчас (v1.7.2 - Автоматическая санитизация)
+```text
+[OpenAI отклоняет 1 из 5 изображений]
+      ↓
+[🤖 Санитизируем промпт через OpenAI (gpt-4o-mini)]
+      ↓
+[Повторяем генерацию с исправленным промптом]
+      ↓
+[Успех? → Используем изображение ✅]
+      ↓
+[Неудача? → Повторяем до 3 раз]
+      ↓
+[Все 3 попытки неудачны? → Пропускаем]
+      ↓
+[Создаем видео с успешными изображениями]
+      ↓
+[Пользователь ПОЛУЧАЕТ видео с БОЛЬШИМ количеством изображений]
 ```
 
 ---
@@ -38,7 +57,7 @@
 ```json
 {
   "level": "WARN",
-  "message": "Image 1 rejected by safety system, using placeholder",
+  "message": "Image 1 rejected by safety system - attempting sanitization",
   "videoId": "...",
   "promptPreview": "...",
   "error": "400 Your request was rejected as a result of our safety system."
@@ -107,7 +126,7 @@ const rejectionRate = (rejectedCount / total) * 100;
 
 ## 🛠️ Примеры обработки
 
-### Код: Обработка одного изображения
+### Код: Обработка одного изображения (v1.7.2 с санитизацией)
 
 ```typescript
 const imagePromises = video.imagePrompts.map(async (img, index) => {
@@ -116,21 +135,109 @@ const imagePromises = video.imagePrompts.map(async (img, index) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     
-    // 🛡️ Ошибка модерации
+    // 🛡️ Проверка: ошибка модерации (case-insensitive)
+    const lower = errorMessage.toLowerCase();
     const isSafetyError = 
-      errorMessage.includes('safety system') || 
-      errorMessage.includes('content policy') ||
-      errorMessage.includes('rejected as a result');
+      lower.includes('safety system') || 
+      lower.includes('content policy') ||
+      lower.includes('rejected as a result');
     
-    if (isSafetyError) {
-      logger.warn(`Image ${index + 1} rejected by safety system`);
-      return null; // ← Пропускаем
+    // 💥 Техническая ошибка - прокидываем сразу
+    if (!isSafetyError) {
+      throw error;
     }
     
-    // 💥 Техническая ошибка
-    throw error; // ← Прокидываем дальше
+    // 🤖 Модерационная ошибка - пытаемся санитизировать и повторить
+    logger.warn(`Image ${index + 1} rejected by safety system - attempting sanitization`, {
+      videoId,
+      promptPreview: img.substring(0, 120),
+      error: errorMessage
+    });
+    
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // 1. Санитизируем промпт через OpenAI
+      const sanitized = await sanitizePromptWithOpenAI(img, 1);
+      if (!sanitized) {
+        logger.warn('Sanitization returned empty', { attempt, videoId, index });
+        continue;
+      }
+      
+      try {
+        // 2. Пытаемся сгенерировать с санитизированным промптом
+        const result = await processImage(sanitized, modelId);
+        logger.info(`Sanitization succeeded on attempt ${attempt}`, { videoId, index });
+        return result; // ✅ Успех!
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        const retryLower = retryMsg.toLowerCase();
+        const retryIsSafety = 
+          retryLower.includes('safety system') || 
+          retryLower.includes('content policy') || 
+          retryLower.includes('rejected as a result');
+        
+        logger.warn(`Sanitized prompt attempt ${attempt} failed`, { 
+          videoId, 
+          attempt, 
+          retryError: retryMsg 
+        });
+        
+        // Если техническая ошибка - прокидываем
+        if (!retryIsSafety) {
+          throw retryErr;
+        }
+        // Если снова модерация - продолжаем цикл
+      }
+    }
+    
+    // ⚠️ Все попытки санитизации не помогли - пропускаем
+    logger.warn(`All sanitization retries failed for image ${index + 1}, skipping image`, { 
+      videoId, 
+      index 
+    });
+    return null; // ← Пропускаем только после 3 неудачных попыток
   }
 });
+```
+
+### 🤖 Функция санитизации (v1.7.2)
+
+```typescript
+/**
+ * Переписывает промпт для соответствия политикам безопасности OpenAI
+ * @param originalPrompt - Оригинальный промпт, отклонённый модерацией
+ * @param maxRetries - Максимум попыток переписывания (обычно 1, т.к. внешний цикл делает 3 попытки)
+ * @returns Санитизированный промпт или null при неудаче
+ */
+async function sanitizePromptWithOpenAI(
+  originalPrompt: string, 
+  maxRetries = 1
+): Promise<string | null> {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const chat = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { 
+          role: 'system', 
+          content: 'Rewrite image prompts to conform with content safety policies while preserving intent.' 
+        },
+        { role: 'user', content: originalPrompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 200
+    });
+    
+    const sanitized = chat.choices[0]?.message?.content?.trim();
+    if (sanitized) {
+      logger.info('Sanitization successful', { attempt, sanitizedPrompt: sanitized });
+      return sanitized;
+    }
+  }
+  
+  return null;
+}
 ```
 
 ### Код: Проверка минимума
@@ -159,7 +266,7 @@ await prisma.video.update({
 
 ### WARN - Ожидаемые проблемы
 ```typescript
-logger.warn(`Image ${index + 1} rejected by safety system, using placeholder`, {
+logger.warn(`Image ${index + 1} rejected by safety system - attempting sanitization`, {
   videoId,
   promptPreview: img.substring(0, 100),
   error: errorMessage
@@ -245,24 +352,25 @@ interface VideoMetadata {
 
 ## 📚 Связанные документы
 
-- 📖 [CONTENT_MODERATION_HANDLING.md](./CONTENT_MODERATION_HANDLING.md) - Подробная документация
-- 🔧 [TROUBLESHOOTING_IMAGE_GENERATION.md](./TROUBLESHOOTING_IMAGE_GENERATION.md) - Руководство по troubleshooting
+- 📖 [CONTENT_MODERATION_HANDLING.md](./CONTENT_MODERATION_HANDLING.md) - Подробная документация (v1.7.2)
+- 🔧 [TROUBLESHOOTING_IMAGE_GENERATION.md](./TROUBLESHOOTING_IMAGE_GENERATION.md) - Руководство по troubleshooting (v1.7.2)
 - 📝 [LOGGING.md](./LOGGING.md) - Политика логирования
-- 🔄 [CHANGELOG.md](../CHANGELOG.md) - История изменений (v1.7.1)
+- 🔄 [CHANGELOG.md](../CHANGELOG.md) - История изменений (v1.7.2)
 
 ---
 
-## ✅ Checklist при возникновении ошибок
+## ✅ Checklist при возникновении ошибок (v1.7.2)
 
 - [ ] Проверить лог-файлы за последний час
 - [ ] Определить тип ошибки (moderation vs technical)
 - [ ] Проверить success rate (должен быть > 80%)
-- [ ] Если moderation: проверить промпты на inappropriate content
+- [ ] Если moderation: проверить логи санитизации (`"attempting sanitization"`)
+- [ ] Проверить количество успешных санитизаций vs пропущенных изображений
 - [ ] Если technical: проверить API ключи и network
 - [ ] Если критично (0%): уведомить команду
 - [ ] Документировать паттерн если повторяется
 
 ---
 
-*Обновлено: 2025-10-16*  
-*Версия: 1.7.1*
+*Обновлено: 2025-10-17*  
+*Версия: 1.7.2 (Автоматическая санитизация промптов)*
