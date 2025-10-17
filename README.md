@@ -866,6 +866,12 @@ node scripts/test-redis.js
 - Посмотрите логи воркера на наличие ошибок
 - Проверьте Redis connection
 
+**Ошибки генерации изображений**:
+- 🛡️ **Content Moderation** (`400 safety system`): Автоматически пропускается, видео создается с остальными изображениями
+- 🔑 **API ключ отсутствует**: Добавьте `OPENAI_API_KEY` или `REPLICATE_API_KEY`
+- ⏱️ **Rate Limit** (`429`): Воркер автоматически повторит попытку
+- 📚 **Подробнее**: [docs/TROUBLESHOOTING_IMAGE_GENERATION.md](./docs/TROUBLESHOOTING_IMAGE_GENERATION.md)
+
 **Ошибки API (OpenAI, Replicate, etc.)**:
 - Проверьте валидность API ключей
 - Убедитесь, что на аккаунтах есть баланс
