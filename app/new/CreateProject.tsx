@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import { Cover } from "@/components/ui/cover";
 import { ShineBorder } from "@/components/magicui/shine-border";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
-import { LoadingSpinner } from "../components/LoadingSpinner";
 import PromptExamples from "../components/PromptExamples";
 import VideoCreationProgress from "../components/VideoCreationProgress";
 import { logger } from "@/lib/logger";
@@ -195,9 +194,9 @@ const CreateProject = ({
                       setError("Failed to create video. Please try again.");
                       setIsLoading(false);
                     }
-                  } catch (err: any) {
+                  } catch (err: unknown) {
                     logger.error("Video creation error", { error: err instanceof Error ? err.message : String(err) });
-                    if (err?.message?.includes('not authenticated')) {
+                    if (err instanceof Error && err.message?.includes('not authenticated')) {
                       setError("Authentication required. Please sign in again.");
                       setShowLoginDialog(true);
                     } else {

@@ -2,10 +2,11 @@ import Redis from "ioredis";
 import { Worker, Job, UnrecoverableError } from "bullmq";
 import { processVideo } from "@/app/actions/processes";
 import { prisma, withRetry } from "@/app/lib/db";
-import { setVideoProgress, deleteVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
+import { setVideoProgress, testRedisConnection, getVideoCheckpoint, getNextStep, setRedisInstance } from "@/lib/redis";
 import { createRedisConfig, validateRedisConfig } from "@/lib/redis-config";
 import { workerLogger as logger } from "@/lib/logger";
 import { revalidateCacheFromWorker } from "@/lib/revalidate";
+import { RETRYABLE_ERROR_CODES, RETRYABLE_ERROR_PATTERNS, WORKER_CONCURRENCY } from "@/app/constants/video";
 
 // Функция для определения, стоит ли делать ретрай
 // Проверяет network/timeout/DNS/socket ошибки, избегая маскировки логических багов
@@ -13,40 +14,16 @@ function isRetryableError(error: unknown): boolean {
     if (!(error instanceof Error)) return false;
     
     // Проверяем error.code для системных ошибок (более надежно чем message)
-    const errorCode = (error as any).code;
-    const retryableCodes = [
-        'ECONNRESET',     // Connection reset
-        'ENOTFOUND',      // DNS lookup failed
-        'ETIMEDOUT',      // Connection timeout
-        'ECONNREFUSED',   // Connection refused
-        'ENETUNREACH',    // Network unreachable
-        'EAI_AGAIN',      // DNS temporary failure
-        'EPIPE',          // Broken pipe
-        'EHOSTUNREACH',   // Host unreachable
-        'ECONNABORTED',   // Connection aborted
-    ];
+    const errorCode = (error as NodeJS.ErrnoException).code;
     
-    if (errorCode && retryableCodes.includes(errorCode)) {
+    if (errorCode && RETRYABLE_ERROR_CODES.includes(errorCode as typeof RETRYABLE_ERROR_CODES[number])) {
         return true;
     }
     
     // Fallback на проверку message для других типов ошибок
     const message = error.message.toLowerCase();
     
-    // Только явные сетевые/timeout ошибки, без "internal server error"
-    const retryablePatterns = [
-        'fetch failed',
-        'connect timeout',
-        'network error',
-        'connection refused',
-        'temporary failure',
-        'service unavailable',  // 503
-        'gateway timeout',      // 504
-        'socket hang up',       // Common in undici/Node HTTP
-        'timed out',            // Generic timeout
-    ];
-    
-    return retryablePatterns.some(pattern => message.includes(pattern));
+    return RETRYABLE_ERROR_PATTERNS.some(pattern => message.includes(pattern));
 }
 
 // Логируем переменные окружения для отладки
@@ -97,8 +74,8 @@ const worker = new Worker('video-processing', async (job: Job) => {
             videoId,
             nextStep,
             completed: Object.entries(checkpoint.completedSteps)
-                .filter(([_, completed]) => completed)
-                .map(([step, _]) => step),
+                .filter(([, completed]) => completed)
+                .map(([step]) => step),
             lastCompleted: checkpoint.lastCompletedStep,
             lastFailed: checkpoint.lastFailedStep
         });
@@ -267,7 +244,7 @@ const worker = new Worker('video-processing', async (job: Job) => {
     }
 }, { 
     connection, 
-    concurrency: 2
+    concurrency: WORKER_CONCURRENCY
 });
 
 worker.on('completed', (job) => {

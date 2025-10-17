@@ -123,7 +123,6 @@ export const useVideoActions = ({
       });
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
         console.error("Download failed:", error);
       }
       toast.error("Download failed", {
@@ -161,7 +160,6 @@ export const useVideoActions = ({
       });
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
         console.error("Failed to copy link:", error);
       }
       toast.error("Copy failed", {
@@ -209,7 +207,6 @@ export const useVideoActions = ({
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        // eslint-disable-next-line no-console
         console.error("Delete operation failed:", error);
       }
       toast.error("Delete failed", { 

@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import { logger } from '@/lib/logger';
 import { createRedisConfig, validateRedisConfig } from '@/lib/redis-config';
+import { VIDEO_PROGRESS_TTL, VIDEO_CHECKPOINT_TTL, VIDEO_METADATA_TTL } from '@/app/constants/video';
 
 let redisInstance: Redis | null = null;
 
@@ -49,8 +50,6 @@ function getRedisInstance(): Redis {
 
 export const VIDEO_PROGRESS_PREFIX = 'video_progress:';
 export const VIDEO_CHECKPOINT_PREFIX = 'video_checkpoint:';
-export const VIDEO_PROGRESS_TTL = 3600; // 1 час
-export const VIDEO_CHECKPOINT_TTL = 7200; // 2 часа (дольше чем прогресс)
 
 // Безопасная типизация для метаданных видео (не содержит PII)
 export interface VideoMetadataSafe {
@@ -332,7 +331,7 @@ export const setVideoMetadata = async (videoId: string, metadata: VideoMetadataS
   try {
     const redis = getRedisInstance();
     const key = `${VIDEO_METADATA_PREFIX}${videoId}`;
-    await redis.set(key, JSON.stringify(metadata), 'EX', 86400); // TTL 24 часа
+    await redis.set(key, JSON.stringify(metadata), 'EX', VIDEO_METADATA_TTL);
   } catch (error) {
     logger.error('Failed to set video metadata in Redis', {
       videoId,
