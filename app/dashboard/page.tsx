@@ -86,14 +86,6 @@ const Dashboard = async ({
   const processingVideos = videos.filter(video => video.processing);
   const errorVideos = videos.filter(video => video.failed === true);
 
-  // Функция для определения типа пустого состояния (может использоваться в будущем)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getEmptyStateVariant = (): 'no-videos' | 'all-processing' | 'mixed' => {
-    if (videos.length === 0) return 'no-videos';
-    if (completedVideos.length === 0 && processingVideos.length > 0) return 'all-processing';
-    return 'mixed';
-  };
-
   return (
     <div className="container mx-auto p-4 sm:p-6 mt-4">
       {/* Header */}

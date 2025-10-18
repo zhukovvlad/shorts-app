@@ -26,40 +26,10 @@ import { videoQueue } from "../lib/queue"
 import { logger } from "@/lib/logger"
 import { revalidateTag } from "next/cache"
 import { computeModelCost, getDefaultModel, getModelById } from '@/lib/imageModels'
-import { PROMPT_MIN_LENGTH, PROMPT_MAX_LENGTH } from "@/app/constants/video"
+import { PROMPT_MIN_LENGTH, PROMPT_MAX_LENGTH, MAX_RETRY_ATTEMPTS } from "@/app/constants/video"
+import { validatePrompt, ValidationError } from '@/lib/validation';
 
-/**
- * Валидирует и очищает входной промпт для создания видео
- * 
- * @param prompt - Пользовательский промпт для генерации видео
- * @returns Очищенный и валидированный промпт
- * @throws {Error} Если промпт пустой, не строка, слишком короткий или длинный
- * 
- * @example
- * ```typescript
- * const validPrompt = validatePrompt("Create a video about cats")
- * // Возвращает: "Create a video about cats"
- * 
- * validatePrompt("   ") // Выбросит ошибку: слишком короткий
- * validatePrompt("a".repeat(501)) // Выбросит ошибку: слишком длинный
- * ```
- */
-const validatePrompt = (prompt: string): string => {
-  if (!prompt || typeof prompt !== 'string') {
-    throw new Error('Prompt is required and must be a string')
-  }
-
-  const trimmedPrompt = prompt.trim()
-  if (trimmedPrompt.length < PROMPT_MIN_LENGTH) {
-    throw new Error(`Prompt must be at least ${PROMPT_MIN_LENGTH} characters long`)
-  }
-
-  if (trimmedPrompt.length > PROMPT_MAX_LENGTH) {
-    throw new Error(`Prompt must be at most ${PROMPT_MAX_LENGTH} characters long`)
-  }
-
-  return trimmedPrompt
-}
+// Use centralized validator from lib/validation
 
 /**
  * Создает новое видео и запускает процесс его генерации
@@ -232,7 +202,7 @@ export const createVideo = async (prompt: string, imageModel?: string) => {
       },
       {
         // Настройки надежности для критически важных задач
-        attempts: 3, // Максимум 3 попытки выполнения
+        attempts: MAX_RETRY_ATTEMPTS, // Централизованная настройка попыток
         backoff: {
           type: 'exponential', // Экспоненциальная задержка между попытками
           delay: 5000, // Начальная задержка 5 секунд
